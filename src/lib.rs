@@ -272,7 +272,7 @@ mod zfs {
             let format = format_description!(
                 "[weekday repr:short] [month repr:short] [day] [hour padding:zero repr:24]:[minute]:[second] [year]"
             );
-            let scan_status = ScanStatus::from(content);
+            let scan_status = ScanStatus::from(message);
             let timestamp = PrimitiveDateTime::parse(timestamp, &format)
                 .with_context(|| format!("timestamp string {timestamp:?}"))?;
             let timestamp = timestamp.assume_offset(self.local_offset);
@@ -409,7 +409,9 @@ mod fmt {
         (
             $(
                 $(#[$meta:meta])*
-                $vis:vis enum $name:ident {
+                $vis:vis enum $name:ident for $source:ident {
+                    #[default]
+                    UnknownMissing => 0,
                     $(
                         $(#[$meta_inner:meta])*
                         $variant:ident => $variant_value:expr
@@ -422,6 +424,8 @@ mod fmt {
                     #[derive(Clone, Copy, Debug, Default)]
                     $(#[$meta])*
                     $vis enum $name {
+                        #[default]
+                        UnknownMissing = 0,
                         $(
                             $(#[$meta_inner])*
                             $variant = $variant_value
@@ -447,10 +451,32 @@ mod fmt {
                         }
                         Summary
                     }
+                    pub fn from_opt<T>(source: &Option<T>) -> u32
+                    where
+                        Self: From<T>,
+                        T: Copy,
+                    {
+                        source.map(Self::from).unwrap_or_default().value()
+                    }
                     pub fn value(self) -> u32 {
                         match self {
-                            $($name::$variant => $variant_value),+
+                            Self::UnknownMissing => 0,
+                            $(Self::$variant => $variant_value),+
                         }
+                    }
+                }
+                impl From<$source> for $name {
+                    fn from(source: $source) -> Self {
+                        match source {
+                            $(
+                                $source::$variant => Self::$variant
+                            ),+
+                        }
+                    }
+                }
+                impl<T> From<($source, T)> for $name {
+                    fn from((source, _): ($source, T)) -> Self {
+                        source.into()
                     }
                 }
             )+
@@ -461,7 +487,7 @@ mod fmt {
     //
     // Keep the values stable, for continuity in prometheus history
     value_enum! {
-        pub enum PoolStateValue {
+        pub enum PoolStateValue for PoolStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
@@ -475,7 +501,7 @@ mod fmt {
             Unavail  => 8,
 
         }
-        pub enum ScanStatusValue {
+        pub enum ScanStatusValue for ScanStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
@@ -483,43 +509,13 @@ mod fmt {
             ScrubRepaired => 2,
             // TODO Add new statuses here
         }
-        pub enum ErrorStatusValue {
+        pub enum ErrorStatusValue for ErrorStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
             //
             Ok => 2,
             // TODO Add new errors here
-        }
-    }
-    impl<T> From<(ScanStatus, T)> for ScanStatusValue {
-        fn from((scan_status, _): (ScanStatus, T)) -> Self {
-            match scan_status {
-                ScanStatus::Unrecognized => Self::Unrecognized,
-                ScanStatus::ScrubRepaired => Self::ScrubRepaired,
-            }
-        }
-    }
-    impl From<PoolStatus> for PoolStateValue {
-        fn from(value: PoolStatus) -> Self {
-            match value {
-                PoolStatus::Unrecognized => Self::Unrecognized,
-                PoolStatus::Offline => Self::Offline,
-                PoolStatus::Removed => Self::Removed,
-                PoolStatus::Faulted => Self::Faulted,
-                PoolStatus::Split => Self::Split,
-                PoolStatus::Unavail => Self::Unavail,
-                PoolStatus::Degraded => Self::Degraded,
-                PoolStatus::Online => Self::Online,
-            }
-        }
-    }
-    impl From<ErrorStatus> for ErrorStatusValue {
-        fn from(value: ErrorStatus) -> Self {
-            match value {
-                ErrorStatus::Unrecognized => Self::Unrecognized,
-                ErrorStatus::Ok => Self::Ok,
-            }
         }
     }
 
@@ -592,31 +588,19 @@ mod fmt {
                         name,
                         state,
                         scan_status,
-                        devices,
+                        devices: _, // TODO
                         error,
                     } = pool;
                     let value = match section {
-                        Sections::PoolState => state
-                            .map(PoolStateValue::from)
-                            .unwrap_or_default()
-                            .value()
-                            .into(),
-                        Sections::ScanState => scan_status
-                            .map(ScanStatusValue::from)
-                            .unwrap_or_default()
-                            .value()
-                            .into(),
+                        Sections::PoolState => PoolStateValue::from_opt(state).into(),
+                        Sections::ScanState => ScanStatusValue::from_opt(scan_status).into(),
                         Sections::ScanAge => {
                             let seconds = scan_status
                                 .as_ref()
                                 .map_or(0.0, |&(_, scan_time)| (now - scan_time).as_seconds_f64());
                             seconds / SECONDS_PER_HOUR
                         }
-                        Sections::ErrorState => error
-                            .map(ErrorStatusValue::from)
-                            .unwrap_or_default()
-                            .value()
-                            .into(),
+                        Sections::ErrorState => ErrorStatusValue::from_opt(error).into(),
                     };
                     // detect integers to print normally
                     let precision = if value.fract().abs() < f64::EPSILON {
