@@ -69,9 +69,7 @@ impl TimeContext {
         let metrics_str = match self.get_zfs_metrics() {
             Ok(metrics) => fmt::format_metrics(metrics, start_time),
             Err(err) => {
-                let error_str = format!("{err:#}");
-                eprintln!("{error_str}");
-                error_str
+                format!("# ERROR:\n# {err:#}")
             }
         };
         Response::from_string(metrics_str)
@@ -80,6 +78,16 @@ impl TimeContext {
 
 mod zfs {
     //! Parse the output of ZFS commands
+    //!
+    //! `PoolMetrics` will contain:
+    //! - `None` values if the entry is not present, or
+    //! - `Unrecognized` if the entry is present but not a known value
+    //!
+    //! Novel ZFS errors (a.k.a. unknown to the author) may happen from time to time;
+    //! it is crucial to continue reporting metrics in the face of unknown errors/states.
+    //!
+    //! Therefore, errors are only returned when the input does not match the expected format.
+    //! This is a signal that a major format change happened (e.g. requiring updates to this library).
 
     use crate::TimeContext;
     use anyhow::Context as _;
@@ -88,41 +96,32 @@ mod zfs {
 
     pub struct PoolMetrics {
         pub name: String,
-        pub state: Option<String>,
+        pub state: Option<PoolStatus>,
         pub scan_status: Option<(ScanStatus, OffsetDateTime)>,
         pub devices: Vec<DeviceMetrics>,
-        pub errors: Vec<String>,
+        pub error: Option<ErrorStatus>,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum PoolStatus {
+        Unrecognized,
+        Offline,
+        Removed,
+        Faulted,
+        Split,
+        Unavail,
+        Degraded,
+        Online,
     }
     #[derive(Clone, Copy, Debug)]
     pub enum ScanStatus {
+        Unrecognized,
         ScrubRepaired,
     }
-    impl ScanStatus {
-        const ALL: &'static [Self] = &[Self::ScrubRepaired];
-        pub fn summarize_values() -> impl std::fmt::Display {
-            ScanStatusSummary
-        }
-    }
-    struct ScanStatusSummary;
-    impl std::fmt::Display for ScanStatusSummary {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let mut first = Some(());
-            for &status in ScanStatus::ALL {
-                if first.take().is_none() {
-                    write!(f, ", ")?;
-                }
-                let status_num = u32::from(status);
-                write!(f, "{status:?} = {status_num}")?;
-            }
-            Ok(())
-        }
-    }
-    impl From<ScanStatus> for u32 {
-        fn from(value: ScanStatus) -> Self {
-            match value {
-                ScanStatus::ScrubRepaired => 1,
-            }
-        }
+    #[derive(Clone, Copy, Debug)]
+    pub enum ErrorStatus {
+        Unrecognized,
+        Ok,
     }
 
     pub struct DeviceMetrics {
@@ -194,7 +193,7 @@ mod zfs {
                         }
                     }
                 }
-                .with_context(|| format!("on line {line:?}"))?;
+                .with_context(|| format!("on zpool-status output line: {line:?}"))?;
             }
             Ok(pools)
         }
@@ -207,7 +206,7 @@ mod zfs {
                 state: None,
                 scan_status: None,
                 devices: vec![],
-                errors: vec![],
+                error: None,
             }
         }
         // NOTE: reference the openzfs source for possible formatting changes
@@ -218,38 +217,43 @@ mod zfs {
             content: &str,
             time_context: &TimeContext,
         ) -> anyhow::Result<()> {
+            fn err_if_previous(
+                (label, content): (&str, &str),
+                previous: Option<impl std::fmt::Debug>,
+            ) -> anyhow::Result<()> {
+                if let Some(previous) = previous {
+                    Err(anyhow::anyhow!(
+                        "duplicate {label}: {previous:?} and {content:?}"
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
             match label {
                 "state" => {
-                    let previous = self.state.replace(content.to_string());
-                    if let Some(previous) = previous {
-                        anyhow::bail!("duplicate {label}: {previous:?} and {content:?}");
-                    }
+                    let new_state = content.into();
+                    err_if_previous((label, content), self.state.replace(new_state))
                 }
                 "scan" => {
-                    let previous = self
-                        .scan_status
-                        .replace(time_context.parse_scan_content(content)?);
-                    if let Some(previous) = previous {
-                        anyhow::bail!("duplicate {label}: {previous:?} and {content:?}");
-                    }
+                    let new_scan_scatus = time_context.parse_scan_content(content)?;
+                    err_if_previous((label, content), self.scan_status.replace(new_scan_scatus))
                 }
                 "config" => {
-                    if !content.is_empty() {
-                        anyhow::bail!(
+                    if content.is_empty() {
+                        // ignore content
+                        Ok(())
+                    } else {
+                        Err(anyhow::anyhow!(
                             "expected empty content for label {label}, found: {content:?}"
-                        );
+                        ))
                     }
                 }
                 "errors" => {
-                    if content != "No known data errors" {
-                        self.errors.push(content.to_string());
-                    }
+                    let new_error = content.into();
+                    err_if_previous((label, content), self.error.replace(new_error))
                 }
-                unknown => {
-                    anyhow::bail!("unknown label: {unknown:?}");
-                }
+                unknown => Err(anyhow::anyhow!("unknown label: {unknown:?}")),
             }
-            Ok(())
         }
         fn parse_line_device(&mut self, line: &str) -> anyhow::Result<()> {
             let device = line.parse()?;
@@ -268,7 +272,7 @@ mod zfs {
             let format = format_description!(
                 "[weekday repr:short] [month repr:short] [day] [hour padding:zero repr:24]:[minute]:[second] [year]"
             );
-            let scan_status = message.parse()?;
+            let scan_status = ScanStatus::from(content);
             let timestamp = PrimitiveDateTime::parse(timestamp, &format)
                 .with_context(|| format!("timestamp string {timestamp:?}"))?;
             let timestamp = timestamp.assume_offset(self.local_offset);
@@ -324,15 +328,43 @@ mod zfs {
         }
     }
 
-    impl FromStr for ScanStatus {
-        type Err = anyhow::Error;
-        fn from_str(scan_status: &str) -> anyhow::Result<Self> {
-            let scan_status = if scan_status.starts_with("scrub repaired") {
+    // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
+    impl From<&str> for ScanStatus {
+        fn from(scan_status: &str) -> Self {
+            // Key focus: "WHAT" state, and "AS OF WHEN"
+            // ignore all other numeric details
+            if scan_status.starts_with("scrub repaired") {
                 Self::ScrubRepaired
             } else {
-                anyhow::bail!("unknown scan status: {scan_status:?}")
-            };
-            Ok(scan_status)
+                Self::Unrecognized
+            }
+        }
+    }
+
+    // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
+    //
+    // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/lib/libzfs/libzfs_pool.c#L183>
+    impl From<&str> for PoolStatus {
+        fn from(scan_status: &str) -> Self {
+            match scan_status {
+                "OFFLINE" => Self::Offline,
+                "REMOVED" => Self::Removed,
+                "FAULTED" => Self::Faulted,
+                "SPLIT" => Self::Split,
+                "UNAVAIL" => Self::Unavail,
+                "DEGRADED" => Self::Degraded,
+                "ONLINE" => Self::Online,
+                _ => Self::Unrecognized,
+            }
+        }
+    }
+    // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
+    impl From<&str> for ErrorStatus {
+        fn from(scan_status: &str) -> Self {
+            match scan_status {
+                "No known data errors" => Self::Ok,
+                _ => Self::Unrecognized,
+            }
         }
     }
 }
@@ -340,7 +372,158 @@ mod zfs {
 mod fmt {
     //! Organize metrics into the prometheus line-by-line format, with comments
 
-    use crate::zfs::{PoolMetrics, ScanStatus};
+    /// Defines the enum with a static field `ALL` containing all variants (in declaration order)
+    macro_rules! enum_all {
+        (
+            $(
+                $(#[$meta:meta])*
+                $vis:vis enum $name:ident {
+                    $(
+                        $(#[$meta_inner:meta])*
+                        $variant:ident $(= $variant_value:expr)?
+                    ),+ $(,)?
+                }
+            )+
+        ) => {
+            $(
+                $(#[$meta])*
+                $vis enum $name {
+                    $(
+                        $(#[$meta_inner])*
+                        $variant $(= $variant_value)?
+                    ),+
+                }
+                impl $name {
+                    const ALL: &'static [Self] = &[
+                        $(Self::$variant,)+
+                    ];
+                }
+            )+
+        };
+    }
+
+    /// Defines the enum with:
+    /// - `fn summarize_values()` to list the name/value pairs, and
+    /// - `fn value()` to retrieve the value
+    macro_rules! value_enum {
+        (
+            $(
+                $(#[$meta:meta])*
+                $vis:vis enum $name:ident {
+                    $(
+                        $(#[$meta_inner:meta])*
+                        $variant:ident => $variant_value:expr
+                    ),+ $(,)?
+                }
+            )+
+        ) => {
+            $(
+                enum_all! {
+                    #[derive(Clone, Copy, Debug, Default)]
+                    $(#[$meta])*
+                    $vis enum $name {
+                        $(
+                            $(#[$meta_inner])*
+                            $variant = $variant_value
+                        ),+
+                    }
+                }
+                impl $name {
+                    /// Returns a comma-separated representation of all variants: "Variant = value"
+                    pub fn summarize_values() -> impl std::fmt::Display {
+                        struct Summary;
+                        impl std::fmt::Display for Summary {
+                            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                                let mut first = Some(());
+                                for &status in $name::ALL {
+                                    if first.take().is_none() {
+                                        write!(f, ", ")?;
+                                    }
+                                    let status_num = status.value();
+                                    write!(f, "{status:?} = {status_num}")?;
+                                }
+                                Ok(())
+                            }
+                        }
+                        Summary
+                    }
+                    pub fn value(self) -> u32 {
+                        match self {
+                            $($name::$variant => $variant_value),+
+                        }
+                    }
+                }
+            )+
+        };
+    }
+
+    // Define output values
+    //
+    // Keep the values stable, for continuity in prometheus history
+    value_enum! {
+        pub enum PoolStateValue {
+            #[default]
+            UnknownMissing => 0,
+            Unrecognized => 1,
+            //
+            Online => 2,
+            Degraded => 3,
+            Faulted  => 4,
+            Offline  => 5,
+            Removed  => 6,
+            Split => 7,
+            Unavail  => 8,
+
+        }
+        pub enum ScanStatusValue {
+            #[default]
+            UnknownMissing => 0,
+            Unrecognized => 1,
+            //
+            ScrubRepaired => 2,
+            // TODO Add new statuses here
+        }
+        pub enum ErrorStatusValue {
+            #[default]
+            UnknownMissing => 0,
+            Unrecognized => 1,
+            //
+            Ok => 2,
+            // TODO Add new errors here
+        }
+    }
+    impl<T> From<(ScanStatus, T)> for ScanStatusValue {
+        fn from((scan_status, _): (ScanStatus, T)) -> Self {
+            match scan_status {
+                ScanStatus::Unrecognized => Self::Unrecognized,
+                ScanStatus::ScrubRepaired => Self::ScrubRepaired,
+            }
+        }
+    }
+    impl From<PoolStatus> for PoolStateValue {
+        fn from(value: PoolStatus) -> Self {
+            match value {
+                PoolStatus::Unrecognized => Self::Unrecognized,
+                PoolStatus::Offline => Self::Offline,
+                PoolStatus::Removed => Self::Removed,
+                PoolStatus::Faulted => Self::Faulted,
+                PoolStatus::Split => Self::Split,
+                PoolStatus::Unavail => Self::Unavail,
+                PoolStatus::Degraded => Self::Degraded,
+                PoolStatus::Online => Self::Online,
+            }
+        }
+    }
+    impl From<ErrorStatus> for ErrorStatusValue {
+        fn from(value: ErrorStatus) -> Self {
+            match value {
+                ErrorStatus::Unrecognized => Self::Unrecognized,
+                ErrorStatus::Ok => Self::Ok,
+            }
+        }
+    }
+
+    use crate::zfs::{ErrorStatus, PoolMetrics, PoolStatus, ScanStatus};
     use serde::Serialize;
     use std::time::Instant;
 
@@ -363,17 +546,19 @@ mod fmt {
         FormatPoolMetrics { pools, start_time }.to_string()
     }
 
-    #[derive(Clone, Copy)]
-    enum Sections {
-        ScanState,
-        ScanAge,
-    }
-    impl Sections {
-        const ALL: &'static [Self] = &[Self::ScanState, Self::ScanAge];
+    enum_all! {
+        #[derive(Clone, Copy)]
+        enum Sections {
+            PoolState,
+            ScanState,
+            ScanAge,
+            ErrorState,
+        }
     }
     impl std::fmt::Display for FormatPoolMetrics {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             const PREFIX: &str = "zpool_status_export";
+            const SECONDS_PER_HOUR: f64 = 60.0 * 60.0;
 
             let Self { pools, start_time } = self;
 
@@ -381,13 +566,25 @@ mod fmt {
 
             for section in Sections::ALL {
                 let metric = match section {
+                    Sections::PoolState => {
+                        writeln!(f, "# Pool state: {}", PoolStateValue::summarize_values())?;
+                        "pool_state"
+                    }
                     Sections::ScanState => {
-                        writeln!(f, "# Scan status: {}", ScanStatus::summarize_values())?;
+                        writeln!(f, "# Scan status: {}", ScanStatusValue::summarize_values())?;
                         "scan_state"
                     }
                     Sections::ScanAge => {
-                        writeln!(f, "# Scan age in seconds")?;
+                        writeln!(f, "# Scan age in hours")?;
                         "scan_age"
+                    }
+                    Sections::ErrorState => {
+                        writeln!(
+                            f,
+                            "# Error status: {}",
+                            ErrorStatusValue::summarize_values()
+                        )?;
+                        "error_state"
                     }
                 };
                 for pool in pools {
@@ -396,17 +593,44 @@ mod fmt {
                         state,
                         scan_status,
                         devices,
-                        errors,
+                        error,
                     } = pool;
                     let value = match section {
-                        Sections::ScanState => scan_status
-                            .map_or(0, |(scan_status, _)| u32::from(scan_status))
+                        Sections::PoolState => state
+                            .map(PoolStateValue::from)
+                            .unwrap_or_default()
+                            .value()
                             .into(),
-                        Sections::ScanAge => scan_status
-                            .as_ref()
-                            .map_or(0, |&(_, scan_time)| (now - scan_time).whole_seconds()),
+                        Sections::ScanState => scan_status
+                            .map(ScanStatusValue::from)
+                            .unwrap_or_default()
+                            .value()
+                            .into(),
+                        Sections::ScanAge => {
+                            let seconds = scan_status
+                                .as_ref()
+                                .map_or(0.0, |&(_, scan_time)| (now - scan_time).as_seconds_f64());
+                            seconds / SECONDS_PER_HOUR
+                        }
+                        Sections::ErrorState => error
+                            .map(ErrorStatusValue::from)
+                            .unwrap_or_default()
+                            .value()
+                            .into(),
                     };
-                    writeln!(f, "{PREFIX}_{metric}{{pool={name:?}}}={value}")?;
+                    // detect integers to print normally
+                    let precision = if value.fract().abs() < f64::EPSILON {
+                        // integer
+                        0
+                    } else {
+                        // float
+                        6
+                    };
+                    writeln!(
+                        f,
+                        "{PREFIX}_{metric}{{pool={name:?}}}={value:.0$}",
+                        precision
+                    )?;
                 }
             }
 
