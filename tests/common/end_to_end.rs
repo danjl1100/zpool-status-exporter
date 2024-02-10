@@ -4,36 +4,62 @@ use nix::{
 };
 use std::{
     net::SocketAddr,
+    path::Path,
     process::{Command, Output, Stdio},
     str::FromStr,
     time::Duration,
 };
 
-const BIN_EXE: &str = env!("CARGO_BIN_EXE_zpool-status-exporter");
+const EXPECTED_METRICS_OUTPUT: &str = include_str!("../../src/bin/output-integration.txt");
+
+fn bin_command() -> Command {
+    const BIN_EXE: &str = env!("CARGO_BIN_EXE_zpool-status-exporter");
+    const BIN_EXE_ZPOOL: &str = env!("CARGO_BIN_EXE_zpool");
+
+    let mut command = Command::new(BIN_EXE);
+
+    {
+        // Overwrite path to the fake zpool executable (usually target debug dir)
+        // (forbid use of system's `zpool` command)
+        let path_to_bin_exe_zpool = Path::new(BIN_EXE_ZPOOL)
+            .parent()
+            .expect("absolute path in zpool CARGO_BIN_EXE");
+
+        command.env("PATH", path_to_bin_exe_zpool);
+    }
+
+    command
+}
 
 #[test]
 fn run_bin() -> anyhow::Result<()> {
     const LISTEN_ADDRESS_STR: &str = "127.0.0.1:9583";
     let listen_address = SocketAddr::from_str(LISTEN_ADDRESS_STR)?;
 
-    let mut subcommand = Command::new(BIN_EXE)
+    // startup server
+    let mut subcommand = bin_command()
         .arg(LISTEN_ADDRESS_STR)
-        .env_clear()
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
 
+    // allow grace period for init
     std::thread::sleep(Duration::from_millis(100));
 
-    // NOTE: Not kill, to check exit status is "success"
-    //     subcommand.kill()?;
+    // request from `/metrics` endpoint
+    let response_metrics = minreq::get(format!("http://{LISTEN_ADDRESS_STR}/metrics")).send();
+
+    // request non-existent URL
+    let response_unknown = minreq::get(format!("http://{LISTEN_ADDRESS_STR}/")).send();
+
+    // SIGINT - request clean exit
     signal::kill(
         Pid::from_raw(subcommand.id().try_into().unwrap()),
         Signal::SIGINT,
     )?;
 
     // allow grace period for cleanup
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(300));
     // but don't wait forever
     subcommand.kill()?;
 
@@ -48,10 +74,79 @@ fn run_bin() -> anyhow::Result<()> {
     let stderr = String::from_utf8(stderr)?;
 
     // no errors
-    assert_eq!(stderr, "");
-    assert!(status.success());
+    assert_eq!(stderr, "", "stderr");
+    assert_eq!(stdout, format!("Listening at {listen_address}\n"), "stdout");
+    assert!(
+        status.success(),
+        "verify sleep duration after SIGINT, killing too early?"
+    );
 
-    assert_eq!(stdout, format!("Listening at {listen_address}\n"));
+    // ----
+
+    let response_metrics = response_metrics?;
+    let response_metrics_status = response_metrics.status_code;
+    let response_metrics = response_metrics.as_str()?;
+
+    let response_unknown = response_unknown?;
+    let response_unknown_status = response_unknown.status_code;
+    let response_unknown = response_unknown.as_str()?;
+
+    assert_eq!(response_unknown, "", "response_unknown");
+    assert_eq!(response_unknown_status, 404);
+
+    // line-by-line comparison, to filter out timestamp-sensitive items
+    {
+        const IGNORE_MARKER: &str = "<IGNORE>";
+
+        let mut response = response_metrics.lines();
+        let mut expected = EXPECTED_METRICS_OUTPUT.lines();
+        loop {
+            let response = response.next();
+            let expected = expected.next();
+            let (response, expected) = match (response, expected) {
+                (None, None) => {
+                    break;
+                }
+                (Some(response), None) => {
+                    anyhow::bail!("extra response line: {response:?}");
+                }
+                (None, Some(expected)) => {
+                    anyhow::bail!("missing expected line: {expected:?}");
+                }
+                (Some(response), Some(expected)) => (response, expected),
+            };
+            assert_equals_ignore(response, expected, IGNORE_MARKER);
+        }
+    }
+    assert_eq!(response_metrics_status, 200);
 
     Ok(())
+}
+
+fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {
+    if expected.ends_with(ignore) {
+        let (expected, after_ignore) = expected
+            .split_once(ignore)
+            .expect("contains marker because it also ends with marker");
+        // SANITY - verify <IGNORE> is at end of line (e.g. only once in the line)
+        assert_eq!(
+            after_ignore, "",
+            "only allowed one {ignore} per line, at end of line"
+        );
+
+        if response.len() < expected.len() {
+            panic!("response too short for expected pattern\n\texpected = {expected:?}\n\tresponse = {response:?}");
+        }
+        let (response_trimmed, response_remainder) = response.split_at(expected.len());
+
+        // SANITY - verify ignored portion is numeric
+        if response_remainder.parse::<f64>().is_err() {
+            panic!("non-numeric ignored remainder {response_remainder:?} of line {response:?}");
+        };
+        eprintln!("ignoring remainder {response_remainder:?} of line {response:?}");
+
+        assert_eq!(response_trimmed, expected, "response_metrics line trimmed");
+    } else {
+        assert_eq!(response, expected, "response_metrics line");
+    }
 }

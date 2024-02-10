@@ -1,0 +1,10 @@
+# Pool state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+zpool_status_export_pool_state{pool="alpha-centauri"}=10
+# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10
+zpool_status_export_scan_state{pool="alpha-centauri"}=10
+# Scan age in hours
+zpool_status_export_scan_age{pool="alpha-centauri"}=<IGNORE>
+# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10
+zpool_status_export_error_state{pool="alpha-centauri"}=10
+# total duration of the lookup in microseconds
+zpool_status_export_lookup=<IGNORE>
