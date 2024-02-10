@@ -62,6 +62,7 @@ macro_rules! value_enum {
             }
             impl $name {
                 /// Returns a comma-separated representation of all variants: "Variant = value"
+                #[allow(clippy::must_use_candidate)]
                 pub fn summarize_values() -> impl std::fmt::Display {
                     struct Summary;
                     impl std::fmt::Display for Summary {
@@ -79,6 +80,7 @@ macro_rules! value_enum {
                     }
                     Summary
                 }
+                /// Returns the value from the specified `Option`
                 pub fn from_opt<T>(source: &Option<T>) -> u32
                 where
                     Self: From<T>,
@@ -86,6 +88,7 @@ macro_rules! value_enum {
                 {
                     source.map(Self::from).unwrap_or_default().value()
                 }
+                #[allow(clippy::must_use_candidate, missing_docs)]
                 pub fn value(self) -> u32 {
                     match self {
                         Self::UnknownMissing => 0,
@@ -115,6 +118,7 @@ macro_rules! value_enum {
 //
 // Keep the values stable, for continuity in prometheus history
 value_enum! {
+    #[allow(missing_docs)]
     pub enum DeviceStatusValue for DeviceStatus {
         #[default]
         UnknownMissing => 0,
@@ -131,6 +135,7 @@ value_enum! {
         Removed => 80,
         Unavail  => 100,
     }
+    #[allow(missing_docs)]
     pub enum ScanStatusValue for ScanStatus {
         #[default]
         UnknownMissing => 0,
@@ -140,6 +145,7 @@ value_enum! {
         // errors
         // TODO Add new statuses here
     }
+    #[allow(missing_docs)]
     pub enum ErrorStatusValue for ErrorStatus {
         #[default]
         UnknownMissing => 0,
@@ -170,6 +176,8 @@ struct FormatPoolMetrics {
     start_time: Instant,
 }
 
+/// Returns the "prometheus style" output metrics for the specified `pools`
+#[must_use]
 pub fn format_metrics(pools: Vec<PoolMetrics>, start_time: Instant) -> String {
     FormatPoolMetrics { pools, start_time }.to_string()
 }
