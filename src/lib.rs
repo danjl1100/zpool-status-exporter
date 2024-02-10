@@ -61,6 +61,12 @@ impl TimeContext {
         Self { local_offset }
     }
 
+    /// Constructs a context for UTC only (not actually synchronized to the local time offset)
+    pub fn new_assume_local_is_utc() -> Self {
+        let local_offset = UtcOffset::UTC;
+        Self { local_offset }
+    }
+
     /// Spawn an HTTP server on the address specified by args
     ///
     /// # Errors
