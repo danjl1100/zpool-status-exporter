@@ -1,83 +1,136 @@
-#![forbid(unsafe_op_in_unsafe_fn)]
+//! Prometheus-style exporter for `zpool status` numeric metrics
+//!
+//! The most notable output is the duration since the last scrub (if displayed)
 
-use clap::Parser;
+// teach me
+#![deny(clippy::pedantic)]
+// // no unsafe
+// #![forbid(unsafe_code)]
+// sane unsafe
+#![forbid(unsafe_op_in_unsafe_fn)]
+// no unwrap
+#![deny(clippy::unwrap_used)]
+// no panic
+#![deny(clippy::panic)]
+// docs!
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+
 use std::time::Instant;
 use time::{util::local_offset, UtcOffset};
-use tiny_http::{Request, Response, Server};
 
-#[derive(Parser)]
+/// Command-line arguments for the server
+#[derive(clap::Parser)]
 pub struct Args {
+    /// Bind address for the server
     #[clap(env)]
     pub listen_address: std::net::SocketAddr,
 }
 
+/// System local-time context for calculating durations
+#[must_use]
 pub struct TimeContext {
     local_offset: UtcOffset,
 }
-/// # Safety
-/// Preconditions:
-///  - There shall be no other threads in the process
-///
-/// Recommend to run this first in main (with no decorators on main, no async executors, etc)
-pub unsafe fn get_time_context() -> TimeContext {
-    let local_offset = {
-        // SAFETY: caller has guaranteed no other threads exist in the process
-        unsafe { local_offset::set_soundness(local_offset::Soundness::Unsound) };
-
-        let local_offset = UtcOffset::current_local_offset();
-
-        // SAFETY: called with `Soundness::Sound`
-        unsafe { local_offset::set_soundness(local_offset::Soundness::Sound) };
-
-        local_offset.expect("soundness temporarily disabled, to skip thread checks")
-    };
-
-    TimeContext { local_offset }
-}
-
 impl TimeContext {
-    pub fn serve(&self, args: Args) -> anyhow::Result<()> {
-        let server = Server::http(args.listen_address).map_err(|e| anyhow::anyhow!(e))?;
+    /// Recommend to call this function in main, before all other actions
+    /// (with no decorators on main, no async executors, etc.)
+    ///
+    /// # Safety
+    ///
+    /// Preconditions:
+    ///  - There shall be no other threads in the process
+    ///
+    #[allow(clippy::missing_panics_doc)]
+    pub unsafe fn new_unchecked() -> Self {
+        let local_offset = {
+            // SAFETY: caller has guaranteed no other threads exist in the process
+            unsafe { local_offset::set_soundness(local_offset::Soundness::Unsound) };
+
+            let local_offset = UtcOffset::current_local_offset();
+
+            // SAFETY: called with `Soundness::Sound`
+            unsafe { local_offset::set_soundness(local_offset::Soundness::Sound) };
+
+            local_offset.expect("soundness temporarily disabled, to skip thread checks")
+        };
+
+        Self { local_offset }
+    }
+
+    /// Spawn an HTTP server on the address specified by args
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the server fails, or the fail-fast metrics creation fails
+    pub fn serve(&self, args: &Args) -> anyhow::Result<()> {
+        let Args { listen_address } = args;
+        let server = tiny_http::Server::http(listen_address).map_err(|e| anyhow::anyhow!(e))?;
 
         // ensure fail-fast
         {
             let fake_start = Instant::now();
-            fmt::format_metrics(self.get_zfs_metrics()?, fake_start);
+            self.get_metrics_str(fake_start)?;
         }
+
+        println!("Listening at {listen_address:?}");
 
         loop {
             let request = server.recv()?;
-            let start_time = Instant::now();
-
-            let _ = self.handle_request(request, start_time);
+            let _ = self.handle_request(request);
         }
     }
-    fn handle_request(&self, request: Request, start_time: Instant) -> anyhow::Result<()> {
+    fn handle_request(&self, request: tiny_http::Request) -> anyhow::Result<()> {
         const ENDPOINT_METRICS: &str = "/metrics";
         const HTML_NOT_FOUND: u32 = 404;
+
+        let start_time = Instant::now();
+
         let url = request.url();
         if url == ENDPOINT_METRICS {
-            let response = self.get_metrics(start_time);
+            let response = self.get_metrics_response(start_time);
             Ok(request.respond(response)?)
         } else {
-            let response = Response::empty(HTML_NOT_FOUND);
+            let response = tiny_http::Response::empty(HTML_NOT_FOUND);
             Ok(request.respond(response)?)
         }
     }
+    fn get_metrics_response(&self, start_time: Instant) -> tiny_http::Response<impl std::io::Read> {
+        let response_str = self
+            .get_metrics_str(start_time)
+            .unwrap_or_else(|err| format!("# ERROR:\n# {err:#}"));
+        tiny_http::Response::from_string(response_str)
+    }
 
-    fn get_metrics(&self, start_time: Instant) -> Response<impl std::io::Read> {
-        let metrics_str = match self.get_zfs_metrics() {
-            Ok(metrics) => fmt::format_metrics(metrics, start_time),
-            Err(err) => {
-                format!("# ERROR:\n# {err:#}")
-            }
-        };
-        Response::from_string(metrics_str)
+    fn get_metrics_str(&self, start_time: Instant) -> anyhow::Result<String> {
+        let zpool_output = exec::zpool_status()?;
+        let zpool_metrics = self.parse_zfs_metrics(&zpool_output)?;
+        Ok(fmt::format_metrics(zpool_metrics, start_time))
     }
 }
 
-mod zfs {
-    //! Parse the output of ZFS commands
+pub mod exec {
+    //! I/O portion of executing status commands
+
+    use anyhow::Context;
+    use std::process::Command;
+
+    /// Returns the output of the `zpool status` command
+    ///
+    /// # Errors
+    /// Returns an error if the command execution fails, or the output is non-utf8
+    pub fn zpool_status() -> anyhow::Result<String> {
+        run_command("zpool", &["status"]).context("running \"zpool status\" command")
+    }
+
+    fn run_command(program: &str, args: &[&str]) -> anyhow::Result<String> {
+        let command_output = Command::new(program).args(args).output()?;
+        String::from_utf8(command_output.stdout).context("non-utf8 output")
+    }
+}
+
+pub mod zfs {
+    //! Parse the output of ZFS commands, [sans-io](https://sans-io.readthedocs.io/how-to-sans-io.html).
     //!
     //! `PoolMetrics` will contain:
     //! - `None` values if the entry is not present, or
@@ -91,45 +144,61 @@ mod zfs {
 
     use crate::TimeContext;
     use anyhow::Context as _;
-    use std::{process::Command, str::FromStr};
+    use std::str::FromStr;
     use time::{macros::format_description, OffsetDateTime, PrimitiveDateTime};
 
+    #[allow(missing_docs)]
     pub struct PoolMetrics {
         pub name: String,
-        pub state: Option<PoolStatus>,
+        pub state: Option<DeviceStatus>,
         pub scan_status: Option<(ScanStatus, OffsetDateTime)>,
         pub devices: Vec<DeviceMetrics>,
         pub error: Option<ErrorStatus>,
     }
 
+    #[allow(missing_docs)]
     #[derive(Clone, Copy, Debug)]
-    pub enum PoolStatus {
+    pub enum DeviceStatus {
+        // unknown
         Unrecognized,
-        Offline,
-        Removed,
-        Faulted,
-        Split,
-        Unavail,
-        Degraded,
+        // healthy
         Online,
+        // misc
+        Offline,
+        Split,
+        // errors (order by increasing severity)
+        Degraded,
+        Faulted,
+        Suspended, // only for POOL, not VDEV
+        Removed,
+        Unavail,
     }
+    #[allow(missing_docs)]
     #[derive(Clone, Copy, Debug)]
     pub enum ScanStatus {
         Unrecognized,
         ScrubRepaired,
     }
+    #[allow(missing_docs)]
     #[derive(Clone, Copy, Debug)]
     pub enum ErrorStatus {
         Unrecognized,
         Ok,
     }
 
+    /// Numeric metrics for a device
     pub struct DeviceMetrics {
+        /// 0-indexed depth of the device within the device tree
         pub depth: u32,
+        /// Device name
         pub name: String,
-        pub state: String,
+        /// Device status
+        pub state: DeviceStatus,
+        /// Count of Read errors
         pub errors_read: u32,
+        /// Count of Write errors
         pub errors_write: u32,
+        /// Count of Checksum errors
         pub errors_checksum: u32,
     }
 
@@ -141,21 +210,25 @@ mod zfs {
     }
 
     impl TimeContext {
-        pub(crate) fn get_zfs_metrics(&self) -> anyhow::Result<Vec<PoolMetrics>> {
-            let output = match Command::new("zpool")
-                .arg("status")
-                .output()
-                .map(|output| String::from_utf8(output.stdout))
-            {
-                Ok(Ok(output)) => output,
-                Ok(Err(err)) => anyhow::bail!("{err}"),
-                Err(err) => anyhow::bail!("{err}"),
-            };
-
+        /// Extracts discrete metrics from the provided output string (expects `zpool status` format)
+        ///
+        /// # Errors
+        /// Returns an error if the string contains a line that does not match the expected format
+        /// (e.g. header line "foobar: ...", or non-numeric error counters in devices list)
+        ///
+        /// # Notes
+        ///
+        /// - Any unknown string within the format will be accepted and represented as `Unrecognized`
+        /// (e.g. unknown error message, unknown scan status)
+        ///
+        /// - Any missing line within the format will result in `None` in the returned struct
+        /// (e.g. no "errors: ..." line or no "scan: ..." line)
+        ///
+        pub fn parse_zfs_metrics(&self, zpool_output: &str) -> anyhow::Result<Vec<PoolMetrics>> {
             let mut pools = vec![];
             // disambiguate from header sections and devices (which may contain COLON)
             let mut current_section = ZpoolStatusSection::default();
-            for line in output.lines() {
+            for line in zpool_output.lines() {
                 match current_section {
                     ZpoolStatusSection::Header => {
                         if let Some((label, content)) = line.split_once(':') {
@@ -304,16 +377,31 @@ mod zfs {
             let Some(name) = cells.next().map(String::from) else {
                 anyhow::bail!("missing device name")
             };
-            let Some(state) = cells.next().map(String::from) else {
+            let Some(state) = cells.next().map(DeviceStatus::from) else {
                 anyhow::bail!("missing state for device {name:?}")
             };
-            let Some(errors_read) = cells.next().map(|s| s.parse()).transpose()? else {
+            let Some(errors_read) = cells
+                .next()
+                .map(str::parse)
+                .transpose()
+                .context("read counter")?
+            else {
                 anyhow::bail!("missing read errors count for device {name:?}")
             };
-            let Some(errors_write) = cells.next().map(|s| s.parse()).transpose()? else {
+            let Some(errors_write) = cells
+                .next()
+                .map(str::parse)
+                .transpose()
+                .context("write counter")?
+            else {
                 anyhow::bail!("missing write errors count for device {name:?}")
             };
-            let Some(errors_checksum) = cells.next().map(|s| s.parse()).transpose()? else {
+            let Some(errors_checksum) = cells
+                .next()
+                .map(str::parse)
+                .transpose()
+                .context("checksum counter")?
+            else {
                 anyhow::bail!("missing checksum errors count for device {name:?}")
             };
 
@@ -343,17 +431,25 @@ mod zfs {
 
     // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
     //
-    // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/lib/libzfs/libzfs_pool.c#L183>
-    impl From<&str> for PoolStatus {
+    // Pool status:
+    // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/lib/libzfs/libzfs_pool.c#L247>
+    //
+    // ... which may call ...
+    //
+    // Device status:
+    // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/cmd/zpool/zpool_main.c#L183>
+    //
+    impl From<&str> for DeviceStatus {
         fn from(scan_status: &str) -> Self {
             match scan_status {
-                "OFFLINE" => Self::Offline,
-                "REMOVED" => Self::Removed,
-                "FAULTED" => Self::Faulted,
-                "SPLIT" => Self::Split,
-                "UNAVAIL" => Self::Unavail,
-                "DEGRADED" => Self::Degraded,
                 "ONLINE" => Self::Online,
+                "OFFLINE" => Self::Offline,
+                "SPLIT" => Self::Split,
+                "DEGRADED" => Self::Degraded,
+                "FAULTED" => Self::Faulted,
+                "SUSPENDED" => Self::Suspended,
+                "REMOVED" => Self::Removed,
+                "UNAVAIL" => Self::Unavail,
                 _ => Self::Unrecognized,
             }
         }
@@ -487,39 +583,43 @@ mod fmt {
     //
     // Keep the values stable, for continuity in prometheus history
     value_enum! {
-        pub enum PoolStateValue for PoolStatus {
+        pub enum DeviceStatusValue for DeviceStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
-            //
-            Online => 2,
-            Degraded => 3,
-            Faulted  => 4,
-            Offline  => 5,
-            Removed  => 6,
-            Split => 7,
-            Unavail  => 8,
-
+            // healthy
+            Online => 10,
+            // misc
+            Offline => 25,
+            Split => 26,
+            // errors (order by increasing severity)
+            Degraded => 50,
+            Faulted  => 60,
+            Suspended  => 70,
+            Removed => 80,
+            Unavail  => 100,
         }
         pub enum ScanStatusValue for ScanStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
-            //
-            ScrubRepaired => 2,
+            // healthy
+            ScrubRepaired => 10,
+            // errors
             // TODO Add new statuses here
         }
         pub enum ErrorStatusValue for ErrorStatus {
             #[default]
             UnknownMissing => 0,
             Unrecognized => 1,
-            //
-            Ok => 2,
+            // healthy
+            Ok => 10,
+            // errors
             // TODO Add new errors here
         }
     }
 
-    use crate::zfs::{ErrorStatus, PoolMetrics, PoolStatus, ScanStatus};
+    use crate::zfs::{DeviceStatus, ErrorStatus, PoolMetrics, ScanStatus};
     use serde::Serialize;
     use std::time::Instant;
 
@@ -563,7 +663,7 @@ mod fmt {
             for section in Sections::ALL {
                 let metric = match section {
                     Sections::PoolState => {
-                        writeln!(f, "# Pool state: {}", PoolStateValue::summarize_values())?;
+                        writeln!(f, "# Pool state: {}", DeviceStatusValue::summarize_values())?;
                         "pool_state"
                     }
                     Sections::ScanState => {
@@ -592,7 +692,7 @@ mod fmt {
                         error,
                     } = pool;
                     let value = match section {
-                        Sections::PoolState => PoolStateValue::from_opt(state).into(),
+                        Sections::PoolState => DeviceStatusValue::from_opt(state).into(),
                         Sections::ScanState => ScanStatusValue::from_opt(scan_status).into(),
                         Sections::ScanAge => {
                             let seconds = scan_status
@@ -610,11 +710,7 @@ mod fmt {
                         // float
                         6
                     };
-                    writeln!(
-                        f,
-                        "{PREFIX}_{metric}{{pool={name:?}}}={value:.0$}",
-                        precision
-                    )?;
+                    writeln!(f, "{PREFIX}_{metric}{{pool={name:?}}}={value:.precision$}")?;
                 }
             }
 
