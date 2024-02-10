@@ -16,7 +16,8 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
-use std::time::Instant;
+use anyhow::Context as _;
+use std::time::{Duration, Instant};
 use time::{util::local_offset, UtcOffset};
 
 pub mod fmt;
@@ -29,6 +30,9 @@ pub struct Args {
     #[clap(env)]
     pub listen_address: std::net::SocketAddr,
 }
+
+/// Signal to cleanly terminate after finishing the current request (if any)
+pub struct Shutdown;
 
 /// System local-time context for calculating durations
 #[must_use]
@@ -71,8 +75,19 @@ impl TimeContext {
     ///
     /// # Errors
     ///
-    /// Returns an error if binding the server fails, or the fail-fast metrics creation fails
-    pub fn serve(&self, args: &Args) -> anyhow::Result<()> {
+    /// Returns an error for any of the following:
+    /// - binding the server fails
+    /// - fail-fast metrics creation fails
+    /// - shutdown receive fails (only if a `Receiver` was provided)
+    ///
+    pub fn serve(
+        &self,
+        args: &Args,
+        mut shutdown_rx: Option<std::sync::mpsc::Receiver<Shutdown>>,
+    ) -> anyhow::Result<()> {
+        const RECV_TIMEOUT: Duration = Duration::from_millis(100);
+        const RECV_SLEEP: Duration = Duration::from_millis(10);
+
         let Args { listen_address } = args;
         let server = tiny_http::Server::http(listen_address).map_err(|e| anyhow::anyhow!(e))?;
 
@@ -84,24 +99,50 @@ impl TimeContext {
 
         println!("Listening at {listen_address:?}");
 
-        loop {
-            let request = server.recv()?;
-            let _ = self.handle_request(request);
+        while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
+            if let Some(request) = server.recv_timeout(RECV_TIMEOUT)? {
+                self.handle_request(request);
+            } else {
+                std::thread::sleep(RECV_SLEEP);
+            }
         }
+        Ok(())
     }
-    fn handle_request(&self, request: tiny_http::Request) -> anyhow::Result<()> {
+    fn check_shutdown(
+        shutdown_rx: Option<&mut std::sync::mpsc::Receiver<Shutdown>>,
+    ) -> anyhow::Result<Option<Shutdown>> {
+        shutdown_rx
+            .map(|rx| rx.try_recv())
+            .transpose()
+            .or_else(|err| {
+                use std::sync::mpsc::TryRecvError as E;
+                match err {
+                    E::Disconnected => Err(anyhow::anyhow!("termination channel receive failure")),
+                    E::Empty => {
+                        // no shutdown signaled, yet
+                        Ok(None)
+                    }
+                }
+            })
+    }
+    fn handle_request(&self, request: tiny_http::Request) {
         const ENDPOINT_METRICS: &str = "/metrics";
         const HTML_NOT_FOUND: u32 = 404;
 
         let start_time = Instant::now();
 
-        let url = request.url();
-        if url == ENDPOINT_METRICS {
-            let response = self.get_metrics_response(start_time);
-            Ok(request.respond(response)?)
-        } else {
-            let response = tiny_http::Response::empty(HTML_NOT_FOUND);
-            Ok(request.respond(response)?)
+        let result = {
+            let url = request.url();
+            if url == ENDPOINT_METRICS {
+                let response = self.get_metrics_response(start_time);
+                request.respond(response).context("metrics response")
+            } else {
+                let response = tiny_http::Response::empty(HTML_NOT_FOUND);
+                request.respond(response).context("not-found response")
+            }
+        };
+        if let Err(err) = result {
+            eprintln!("failed to send response: {err:#}");
         }
     }
     fn get_metrics_response(&self, start_time: Instant) -> tiny_http::Response<impl std::io::Read> {

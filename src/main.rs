@@ -20,10 +20,17 @@ fn main() -> anyhow::Result<()> {
     // SAFETY: no other threads exist in the process (first item in main)
     let time_context = unsafe { zpool_status_exporter::TimeContext::new_unchecked() };
 
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+    ctrlc::set_handler(move || {
+        shutdown_tx
+            .send(zpool_status_exporter::Shutdown)
+            .expect("termination channel send failed");
+    })?;
+
     if nix::unistd::Uid::effective().is_root() {
         anyhow::bail!("refusing to run as super-user, try a non-privileged user");
     }
 
     let args = zpool_status_exporter::Args::parse();
-    time_context.serve(&args)
+    time_context.serve(&args, Some(shutdown_rx))
 }

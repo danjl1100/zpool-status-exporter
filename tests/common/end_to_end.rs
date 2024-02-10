@@ -34,9 +34,8 @@ fn run_bin() -> anyhow::Result<()> {
 
     // allow grace period for cleanup
     std::thread::sleep(Duration::from_millis(100));
-    // TODO
-    // // but don't wait forever
-    // subcommand.kill()?;
+    // but don't wait forever
+    subcommand.kill()?;
 
     let output = subcommand.wait_with_output()?;
 
@@ -50,8 +49,7 @@ fn run_bin() -> anyhow::Result<()> {
 
     // no errors
     assert_eq!(stderr, "");
-    // TODO how can I assert success... up until when it was killed?
-    // assert!(status.success());
+    assert!(status.success());
 
     assert_eq!(stdout, format!("Listening at {listen_address}\n"));
 
