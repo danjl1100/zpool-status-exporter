@@ -167,8 +167,8 @@ impl TimeContext {
                     }
                 }
                 ZpoolStatusSection::Devices => {
-                    if line.trim().is_empty() {
-                        // ignore empty line, and
+                    if !line.starts_with('\t') || line.trim().is_empty() {
+                        // end of section - not starting with tab
                         // back to headers
                         current_section = ZpoolStatusSection::Header;
                         Ok(())

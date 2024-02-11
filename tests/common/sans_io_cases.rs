@@ -47,15 +47,15 @@ fn case1() -> anyhow::Result<()> {
     )
 }
 
+#[test]
+fn case2() -> anyhow::Result<()> {
+    test_case(
+        include_str!("../input/input-02-online-data-corruption.txt"),
+        include_str!("../input/output-02-online-data-corruption.txt"),
+    )
+}
+
 // TODO
-// #[test]
-// fn case2() -> anyhow::Result<()> {
-//     test_case(
-//         include_str!("../input/input-02-online-data-corruption.txt"),
-//         include_str!("../input/output-02-online-data-corruption.txt"),
-//     )
-// }
-//
 // #[test]
 // fn case3() -> anyhow::Result<()> {
 //     test_case(

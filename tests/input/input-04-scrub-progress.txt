@@ -1,0 +1,14 @@
+  pool: neptune
+ state: ONLINE
+  scan: scrub in progress since Sun Feb 11 11:54:20 2024
+	704G / 1.66T scanned at 5.67G/s, 0B / 1.66T issued
+	0B repaired, 0.00% done, no estimated completion time
+config:
+
+	NAME                                        STATE     READ WRITE CKSUM
+	neptune                                     ONLINE       0     0     0
+	  mirror-0                                  ONLINE       0     0     0
+	    wwn-0x5000c500af8ec287-part2            ONLINE       0     0     0
+	    ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1  ONLINE       0     0     0
+
+errors: No known data errors

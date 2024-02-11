@@ -1,0 +1,15 @@
+  pool: dummy
+ state: ONLINE
+  scan: resilvered 21K in 00:00:00 with 0 errors on Sat Feb 10 20:30:44 2024
+config:
+
+	NAME        STATE     READ WRITE CKSUM
+	dummy       ONLINE       0     0     0
+	  mirror-0  ONLINE       0     0     0
+	    loop0   ONLINE       0     0     0
+	    loop1   ONLINE       0     0     0
+	  mirror-1  ONLINE       0     0     0
+	    loop2   ONLINE       0     0     0
+	    loop3   ONLINE       0     0     0
+
+errors: No known data errors

@@ -1,0 +1,19 @@
+TEST_TIMESTAMP=1707101665
+  pool: jeremy
+ state: ONLINE
+status: One or more devices has experienced an error resulting in data
+	corruption.  Applications may be affected.
+action: Restore the file in question if possible.  Otherwise restore the
+	entire pool from backup.
+   see: http://zfsonlinux.org/msg/ZFS-8000-8A
+  scan: scrub repaired 0B in 14h7m with 1 errors on Sun Feb  4 20:54:25 2024
+config:
+
+	NAME                                       STATE     READ WRITE CKSUM
+	jeremy                                     ONLINE       0     0     0
+	  mirror-0                                 ONLINE       0     0     0
+	    ata-ST8000DM004-2CX188_ZCT0ZR05-part1  ONLINE       0     0     0
+	    ata-ST8000VN004-2M2101_WKD02XPR-part1  ONLINE       0     0     0
+errors: List of errors unavailable: permission denied
+
+errors: 1 data errors, use '-v' for a list

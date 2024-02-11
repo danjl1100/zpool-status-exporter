@@ -1,0 +1,35 @@
+  pool: rpool
+ state: ONLINE
+status: Some supported and requested features are not enabled on the pool.
+	The pool can still be used, but some features are unavailable.
+action: Enable all features using 'zpool upgrade'. Once this is done,
+	the pool may no longer be accessible by software that does not support
+	the features. See zpool-features(7) for details.
+  scan: scrub repaired 0B in 00:15:42 with 0 errors on Sun Feb 11 04:00:01 2024
+config:
+
+	NAME                                             STATE     READ WRITE CKSUM
+	rpool                                            ONLINE       0     0     0
+	  mirror-0                                       ONLINE       0     0     0
+	    ata-Samsung_SSD_870_EVO_2TB_S6PNNM0TB15709L  ONLINE       0     0     0
+	    ata-Samsung_SSD_870_EVO_2TB_S753NS0W819849T  ONLINE       0     0     0
+
+errors: No known data errors
+
+  pool: wilbur
+ state: ONLINE
+status: Some supported and requested features are not enabled on the pool.
+	The pool can still be used, but some features are unavailable.
+action: Enable all features using 'zpool upgrade'. Once this is done,
+	the pool may no longer be accessible by software that does not support
+	the features. See zpool-features(7) for details.
+  scan: scrub repaired 0B in 06:35:50 with 0 errors on Sun Feb 11 10:20:10 2024
+config:
+
+	NAME                                       STATE     READ WRITE CKSUM
+	wilbur                                     ONLINE       0     0     0
+	  mirror-0                                 ONLINE       0     0     0
+	    ata-ST8000VN004-2M2101_WSD49ZDC-part1  ONLINE       0     0     0
+	    ata-ST8000VN004-2M2101_WSD4EYEW-part1  ONLINE       0     0     0
+
+errors: No known data errors
