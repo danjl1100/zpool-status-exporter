@@ -46,64 +46,72 @@ value_enum! {
     }
 }
 
-use crate::zfs::{DeviceStatus, ErrorStatus, PoolMetrics, ScanStatus};
-use serde::Serialize;
+use crate::zfs::{DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, ScanStatus};
 use std::time::Instant;
-
-#[derive(Serialize)]
-struct Pool {
-    pool: String,
-}
-#[derive(Serialize)]
-struct Device {
-    pool: String,
-    device: String,
-}
 
 struct FormatPoolMetrics {
     pools: Vec<PoolMetrics>,
     start_time: Instant,
+    now: time::OffsetDateTime,
 }
 
 /// Returns the "prometheus style" output metrics for the specified `pools`
 #[must_use]
-pub fn format_metrics(pools: Vec<PoolMetrics>, start_time: Instant) -> String {
-    FormatPoolMetrics { pools, start_time }.to_string()
+pub fn format_metrics(
+    pools: Vec<PoolMetrics>,
+    start_time: Instant,
+    now: time::OffsetDateTime,
+) -> String {
+    FormatPoolMetrics {
+        pools,
+        start_time,
+        now,
+    }
+    .to_string()
+}
+const PREFIX: &str = "zpool_status_export";
+
+impl std::fmt::Display for FormatPoolMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_pool_sections(f)?;
+
+        self.fmt_device_sections(f)?;
+
+        writeln!(f, "# total duration of the lookup in microseconds")?;
+        let lookup_duration_micros = self.start_time.elapsed().as_micros();
+        writeln!(f, "{PREFIX}_lookup={lookup_duration_micros}")
+    }
 }
 
 enum_all! {
     #[derive(Clone, Copy)]
-    enum Sections {
+    enum PoolSections {
         PoolState,
         ScanState,
         ScanAge,
         ErrorState,
     }
 }
-impl std::fmt::Display for FormatPoolMetrics {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const PREFIX: &str = "zpool_status_export";
+impl FormatPoolMetrics {
+    fn fmt_pool_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const SECONDS_PER_HOUR: f64 = 60.0 * 60.0;
 
-        let Self { pools, start_time } = self;
-
-        let now = time::OffsetDateTime::now_utc();
-
-        for section in Sections::ALL {
+        use PoolSections as S;
+        for section in S::ALL {
             let metric = match section {
-                Sections::PoolState => {
+                S::PoolState => {
                     writeln!(f, "# Pool state: {}", DeviceStatusValue::summarize_values())?;
                     "pool_state"
                 }
-                Sections::ScanState => {
+                S::ScanState => {
                     writeln!(f, "# Scan status: {}", ScanStatusValue::summarize_values())?;
                     "scan_state"
                 }
-                Sections::ScanAge => {
+                S::ScanAge => {
                     writeln!(f, "# Scan age in hours")?;
                     "scan_age"
                 }
-                Sections::ErrorState => {
+                S::ErrorState => {
                     writeln!(
                         f,
                         "# Error status: {}",
@@ -112,24 +120,24 @@ impl std::fmt::Display for FormatPoolMetrics {
                     "error_state"
                 }
             };
-            for pool in pools {
+            for pool in &self.pools {
                 let PoolMetrics {
                     name,
                     state,
                     scan_status,
-                    devices: _, // TODO
+                    devices: _, // see `fmt_device_sections`
                     error,
                 } = pool;
                 let value = match section {
-                    Sections::PoolState => DeviceStatusValue::from_opt(state).into(),
-                    Sections::ScanState => ScanStatusValue::from_opt(scan_status).into(),
-                    Sections::ScanAge => {
-                        let seconds = scan_status
-                            .as_ref()
-                            .map_or(0.0, |&(_, scan_time)| (now - scan_time).as_seconds_f64());
+                    S::PoolState => DeviceStatusValue::from_opt(state).into(),
+                    S::ScanState => ScanStatusValue::from_opt(scan_status).into(),
+                    S::ScanAge => {
+                        let seconds = scan_status.as_ref().map_or(0.0, |&(_, scan_time)| {
+                            (self.now - scan_time).as_seconds_f64()
+                        });
                         seconds / SECONDS_PER_HOUR
                     }
-                    Sections::ErrorState => ErrorStatusValue::from_opt(error).into(),
+                    S::ErrorState => ErrorStatusValue::from_opt(error).into(),
                 };
                 // detect integers to print normally
                 let precision = if value.fract().abs() < f64::EPSILON {
@@ -142,9 +150,102 @@ impl std::fmt::Display for FormatPoolMetrics {
                 writeln!(f, "{PREFIX}_{metric}{{pool={name:?}}}={value:.precision$}")?;
             }
         }
+        Ok(())
+    }
+}
 
-        writeln!(f, "# total duration of the lookup in microseconds")?;
-        let lookup_duration_micros = start_time.elapsed().as_micros();
-        writeln!(f, "{PREFIX}_lookup={lookup_duration_micros}")
+enum_all! {
+    #[derive(Clone, Copy)]
+    enum DeviceSections {
+        State,
+        ErrorsRead,
+        ErrorsWrite,
+        ErrorsChecksum,
+    }
+}
+impl FormatPoolMetrics {
+    fn fmt_device_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use DeviceSections as S;
+        for section in S::ALL {
+            let metric = match section {
+                S::State => {
+                    writeln!(
+                        f,
+                        "# Device state: {}",
+                        DeviceStatusValue::summarize_values()
+                    )?;
+                    "dev_state"
+                }
+                S::ErrorsRead => {
+                    writeln!(f, "# Read error count")?;
+                    "dev_errors_read"
+                }
+                S::ErrorsWrite => {
+                    writeln!(f, "# Write error count")?;
+                    "dev_errors_write"
+                }
+                S::ErrorsChecksum => {
+                    writeln!(f, "# Checksum error count")?;
+                    "dev_errors_checksum"
+                }
+            };
+            for pool in &self.pools {
+                let pool_name = &pool.name;
+
+                let mut dev_name = DeviceTreeName::default();
+                for device in &pool.devices {
+                    let DeviceMetrics {
+                        depth,
+                        ref name,
+                        state,
+                        errors_read,
+                        errors_write,
+                        errors_checksum,
+                    } = *device;
+                    dev_name.update(depth, name.clone());
+                    let value = match section {
+                        S::State => DeviceStatusValue::from(state).value(),
+                        S::ErrorsRead => errors_read,
+                        S::ErrorsWrite => errors_write,
+                        S::ErrorsChecksum => errors_checksum,
+                    };
+                    writeln!(
+                        f,
+                        "{PREFIX}_{metric}{{pool={pool_name:?},dev={dev_name:?}}}={value}"
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Helper for printing device tree elements as slash/separated/strings
+///
+/// NOTE: The `Debug` implementation surrounds the output in quotes, to match the `String` behavior
+#[derive(Default)]
+struct DeviceTreeName(Vec<String>);
+impl DeviceTreeName {
+    fn update(&mut self, depth: usize, name: String) {
+        // exclude the "depth=0" element (pool name)
+        let Some(depth) = depth.checked_sub(1) else {
+            self.0.clear();
+            return;
+        };
+        self.0.truncate(depth);
+        self.0.push(name);
+    }
+}
+impl std::fmt::Debug for DeviceTreeName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"")?;
+        let mut first = Some(());
+        for elem in &self.0 {
+            if first.take().is_none() {
+                write!(f, "/")?;
+            }
+            write!(f, "{elem}")?;
+        }
+        write!(f, "\"")
     }
 }

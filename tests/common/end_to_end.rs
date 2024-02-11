@@ -10,8 +10,6 @@ use std::{
     time::Duration,
 };
 
-const EXPECTED_METRICS_OUTPUT: &str = include_str!("../../src/bin/output-integration.txt");
-
 fn bin_command() -> Command {
     const BIN_EXE: &str = env!("CARGO_BIN_EXE_zpool-status-exporter");
     const BIN_EXE_ZPOOL: &str = env!("CARGO_BIN_EXE_zpool");
@@ -33,6 +31,8 @@ fn bin_command() -> Command {
 
 #[test]
 fn run_bin() -> anyhow::Result<()> {
+    const EXPECTED_METRICS_OUTPUT: &str = include_str!("../../src/bin/output-integration.txt");
+
     const LISTEN_ADDRESS_STR: &str = "127.0.0.1:9583";
     let listen_address = SocketAddr::from_str(LISTEN_ADDRESS_STR)?;
 
@@ -75,7 +75,11 @@ fn run_bin() -> anyhow::Result<()> {
 
     // no errors
     assert_eq!(stderr, "", "stderr");
-    assert_eq!(stdout, format!("Listening at {listen_address}\n"), "stdout");
+    assert_eq!(
+        stdout,
+        format!("Listening at http://{listen_address}\n"),
+        "stdout"
+    );
     assert!(
         status.success(),
         "verify sleep duration after SIGINT, killing too early?"
@@ -94,33 +98,37 @@ fn run_bin() -> anyhow::Result<()> {
     assert_eq!(response_unknown, "", "response_unknown");
     assert_eq!(response_unknown_status, 404);
 
-    // line-by-line comparison, to filter out timestamp-sensitive items
-    {
-        const IGNORE_MARKER: &str = "<IGNORE>";
-
-        let mut response = response_metrics.lines();
-        let mut expected = EXPECTED_METRICS_OUTPUT.lines();
-        loop {
-            let response = response.next();
-            let expected = expected.next();
-            let (response, expected) = match (response, expected) {
-                (None, None) => {
-                    break;
-                }
-                (Some(response), None) => {
-                    anyhow::bail!("extra response line: {response:?}");
-                }
-                (None, Some(expected)) => {
-                    anyhow::bail!("missing expected line: {expected:?}");
-                }
-                (Some(response), Some(expected)) => (response, expected),
-            };
-            assert_equals_ignore(response, expected, IGNORE_MARKER);
-        }
-    }
+    assert_matches_template(response_metrics, EXPECTED_METRICS_OUTPUT);
     assert_eq!(response_metrics_status, 200);
 
     Ok(())
+}
+/// line-by-line comparison, to filter out timestamp-sensitive items
+fn assert_matches_template(response: &str, expected: &str) {
+    const IGNORE_MARKER: &str = "<IGNORE>";
+
+    println!("response:\n{response}\n--------------------------------------------------");
+    println!("expected:\n{expected}\n--------------------------------------------------");
+
+    let mut response = response.lines();
+    let mut expected = expected.lines();
+    loop {
+        let response = response.next();
+        let expected = expected.next();
+        let (response, expected) = match (response, expected) {
+            (None, None) => {
+                break;
+            }
+            (Some(response), None) => {
+                panic!("extra response line: {response:?}");
+            }
+            (None, Some(expected)) => {
+                panic!("missing expected line: {expected:?}");
+            }
+            (Some(response), Some(expected)) => (response, expected),
+        };
+        assert_equals_ignore(response, expected, IGNORE_MARKER);
+    }
 }
 
 fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {

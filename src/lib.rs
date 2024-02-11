@@ -97,7 +97,7 @@ impl TimeContext {
             self.get_metrics_str(fake_start)?;
         }
 
-        println!("Listening at {listen_address:?}");
+        println!("Listening at http://{listen_address:?}");
 
         while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
             if let Some(request) = server.recv_timeout(RECV_TIMEOUT)? {
@@ -155,7 +155,9 @@ impl TimeContext {
     fn get_metrics_str(&self, start_time: Instant) -> anyhow::Result<String> {
         let zpool_output = exec::zpool_status()?;
         let zpool_metrics = self.parse_zfs_metrics(&zpool_output)?;
-        Ok(fmt::format_metrics(zpool_metrics, start_time))
+
+        let now_date = time::OffsetDateTime::now_utc();
+        Ok(fmt::format_metrics(zpool_metrics, start_time, now_date))
     }
 }
 

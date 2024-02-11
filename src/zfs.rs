@@ -55,9 +55,10 @@ pub enum ErrorStatus {
 }
 
 /// Numeric metrics for a device
+#[derive(Debug)]
 pub struct DeviceMetrics {
     /// 0-indexed depth of the device within the device tree
-    pub depth: u32,
+    pub depth: usize,
     /// Device name
     pub name: String,
     /// Device status
@@ -221,17 +222,21 @@ impl TimeContext {
 impl FromStr for DeviceMetrics {
     type Err = anyhow::Error;
     fn from_str(line: &str) -> anyhow::Result<Self> {
+        // `zpool status` currently uses 2 spaces for each level of indentation
+        const DEPTH_MULTIPLE: usize = 2;
+
         let Some(("", line)) = line.split_once('\t') else {
             anyhow::bail!("malformed device line: {line:?}")
         };
         let (depth, line) = {
             let mut chars = line.chars();
-            let mut depth = 0;
+            let mut depth_chars = 0;
             while let Some(' ') = chars.next() {
-                depth += 1;
+                depth_chars += 1;
             }
-            let line = &line[depth..];
-            let depth = u32::try_from(depth).expect("indentation from human-configurable nesting");
+            // NOTE byte indexing via count of chars works because space (' ') is ascii
+            let line = &line[depth_chars..];
+            let depth = depth_chars / DEPTH_MULTIPLE;
             (depth, line)
         };
 

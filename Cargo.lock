@@ -396,7 +396,6 @@ dependencies = [
  "ctrlc",
  "minreq",
  "nix",
- "serde",
  "time",
  "tiny_http",
 ]
