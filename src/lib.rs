@@ -172,11 +172,18 @@ pub mod exec {
     /// # Errors
     /// Returns an error if the command execution fails, or the output is non-utf8
     pub fn zpool_status() -> anyhow::Result<String> {
-        run_command("zpool", &["status"]).context("running \"zpool status\" command")
+        const ARGS: &[&str] = &["status"];
+
+        run_command("/sbin/zpool", ARGS)
+            .or_else(|_| run_command("zpool", ARGS))
+            .context("running \"zpool status\" command")
     }
 
     fn run_command(program: &str, args: &[&str]) -> anyhow::Result<String> {
-        let command_output = Command::new(program).args(args).output()?;
+        let command_output = Command::new(program)
+            .args(args)
+            .output()
+            .with_context(|| format!("command {program:?} args {args:?}"))?;
         String::from_utf8(command_output.stdout).context("non-utf8 output")
     }
 }
