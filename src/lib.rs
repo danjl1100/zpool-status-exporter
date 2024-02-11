@@ -93,14 +93,14 @@ impl TimeContext {
 
         // ensure fail-fast
         {
-            self.now().get_metrics_str()?;
+            self.timestamp_now().get_metrics_str()?;
         }
 
         println!("Listening at http://{listen_address:?}");
 
         while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
             if let Some(request) = server.recv_timeout(RECV_TIMEOUT)? {
-                self.now().handle_request(request);
+                self.timestamp_now().handle_request(request);
             } else {
                 std::thread::sleep(RECV_SLEEP);
             }
@@ -124,12 +124,22 @@ impl TimeContext {
                 }
             })
     }
-    /// Creates a new timestamp instance
-    pub fn now(&self) -> Timestamp<'_> {
+    /// Creates a new timestamp instance from the current date/time
+    pub fn timestamp_now(&self) -> Timestamp<'_> {
+        let datetime = time::OffsetDateTime::now_utc();
+        let compute_time_start = Instant::now();
+        self.timestamp_at(datetime, Some(compute_time_start))
+    }
+    /// Creates a new timestamp instance from the specified date/time
+    pub fn timestamp_at(
+        &self,
+        datetime: time::OffsetDateTime,
+        compute_time_start: Option<Instant>,
+    ) -> Timestamp<'_> {
         Timestamp {
             time_context: self,
-            time: Instant::now(),
-            datetime: time::OffsetDateTime::now_utc(),
+            datetime,
+            compute_time_start,
         }
     }
 }
@@ -137,8 +147,9 @@ impl TimeContext {
 #[must_use]
 pub struct Timestamp<'a> {
     time_context: &'a TimeContext,
-    time: Instant,
     datetime: time::OffsetDateTime,
+    /// If present, start time for timing the computation
+    compute_time_start: Option<Instant>,
 }
 impl<'a> Timestamp<'a> {
     fn handle_request(self, request: tiny_http::Request) {
@@ -179,7 +190,11 @@ impl<'a> Timestamp<'a> {
     pub fn get_metrics_for_output(&self, zpool_output: &str) -> anyhow::Result<String> {
         let zpool_metrics = self.time_context.parse_zfs_metrics(zpool_output)?;
 
-        Ok(fmt::format_metrics(zpool_metrics, self.time, self.datetime))
+        Ok(fmt::format_metrics(
+            zpool_metrics,
+            self.datetime,
+            self.compute_time_start,
+        ))
     }
 }
 

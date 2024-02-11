@@ -1,0 +1,42 @@
+# Pool state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+zpool_status_export_pool_state{pool="dummy"}=50
+# Pool status description: Normal = 0, Unrecognized = 1, SufficientReplicasForMissing = 10
+zpool_status_export_pool_status_desc{pool="dummy"}=10
+# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15
+zpool_status_export_scan_state{pool="dummy"}=10
+# Scan age in hours
+zpool_status_export_scan_age{pool="dummy"}=25.337778
+# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10
+zpool_status_export_error_state{pool="dummy"}=0
+# Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+zpool_status_export_dev_state{pool="dummy",dev=""}=50
+zpool_status_export_dev_state{pool="dummy",dev="mirror-0"}=10
+zpool_status_export_dev_state{pool="dummy",dev="mirror-0/loop0"}=10
+zpool_status_export_dev_state{pool="dummy",dev="mirror-0/loop1"}=10
+zpool_status_export_dev_state{pool="dummy",dev="mirror-1"}=50
+zpool_status_export_dev_state{pool="dummy",dev="mirror-1/loop2"}=10
+zpool_status_export_dev_state{pool="dummy",dev="mirror-1/loop3"}=100
+# Read error count
+zpool_status_export_dev_errors_read{pool="dummy",dev=""}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-0"}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-0/loop0"}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-0/loop1"}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-1"}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-1/loop2"}=0
+zpool_status_export_dev_errors_read{pool="dummy",dev="mirror-1/loop3"}=0
+# Write error count
+zpool_status_export_dev_errors_write{pool="dummy",dev=""}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-0"}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-0/loop0"}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-0/loop1"}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-1"}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-1/loop2"}=0
+zpool_status_export_dev_errors_write{pool="dummy",dev="mirror-1/loop3"}=0
+# Checksum error count
+zpool_status_export_dev_errors_checksum{pool="dummy",dev=""}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-0"}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-0/loop0"}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-0/loop1"}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-1"}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-1/loop2"}=0
+zpool_status_export_dev_errors_checksum{pool="dummy",dev="mirror-1/loop3"}=0

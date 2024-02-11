@@ -61,21 +61,24 @@ use std::time::Instant;
 
 struct FormatPoolMetrics {
     pools: Vec<PoolMetrics>,
-    start_time: Instant,
     now: time::OffsetDateTime,
+    /// If present, start time for the computation
+    ///
+    /// When not provided, no duration will be reported
+    compute_time_start: Option<Instant>,
 }
 
 /// Returns the "prometheus style" output metrics for the specified `pools`
 #[must_use]
 pub fn format_metrics(
     pools: Vec<PoolMetrics>,
-    start_time: Instant,
     now: time::OffsetDateTime,
+    compute_time_start: Option<Instant>,
 ) -> String {
     FormatPoolMetrics {
         pools,
-        start_time,
         now,
+        compute_time_start,
     }
     .to_string()
 }
@@ -87,9 +90,12 @@ impl std::fmt::Display for FormatPoolMetrics {
 
         self.fmt_device_sections(f)?;
 
-        writeln!(f, "# total duration of the lookup in microseconds")?;
-        let lookup_duration_micros = self.start_time.elapsed().as_micros();
-        writeln!(f, "{PREFIX}_lookup={lookup_duration_micros}")
+        if let Some(start_time) = self.compute_time_start {
+            writeln!(f, "# total duration of the lookup in microseconds")?;
+            let lookup_duration_micros = start_time.elapsed().as_micros();
+            writeln!(f, "{PREFIX}_lookup={lookup_duration_micros}")?;
+        }
+        Ok(())
     }
 }
 

@@ -1,0 +1,19 @@
+TEST_TIMESTAMP=1707688498
+  pool: dummy
+ state: DEGRADED
+status: One or more devices could not be used because the label is missing or
+	invalid.  Sufficient replicas exist for the pool to continue
+	functioning in a degraded state.
+action: Replace the device using 'zpool replace'.
+   see: https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-4J
+  scan: scrub repaired 0B in 00:00:00 with 0 errors on Sat Feb 10 20:34:42 2024
+config:
+
+	NAME        STATE     READ WRITE CKSUM
+	dummy       DEGRADED     0     0     0
+	  mirror-0  ONLINE       0     0     0
+	    loop0   ONLINE       0     0     0
+	    loop1   ONLINE       0     0     0
+	  mirror-1  DEGRADED     0     0     0
+	    loop2   ONLINE       0     0     0
+	    loop3   UNAVAIL      0     0     0  corrupted data

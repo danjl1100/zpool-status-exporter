@@ -11,8 +11,7 @@
 mod common {
     mod end_to_end;
 
-    // TODO
-    // mod sans_io_cases;
+    mod sans_io_cases;
 }
 
 /// line-by-line comparison, to filter out timestamp-sensitive items
