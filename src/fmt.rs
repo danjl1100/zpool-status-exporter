@@ -30,6 +30,8 @@ value_enum! {
         Normal => 0,
         Unrecognized => 1,
         SufficientReplicasForMissing => 10,
+        // errors
+        DataCorruption => 50,
     }
     #[allow(missing_docs)]
     pub enum ScanStatusValue for ScanStatus {
@@ -50,7 +52,7 @@ value_enum! {
         // healthy
         Ok => 10,
         // errors
-        // TODO Add new errors here
+        DataErrors => 50,
     }
 }
 

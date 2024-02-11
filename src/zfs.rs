@@ -45,21 +45,31 @@ pub enum DeviceStatus {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum PoolStatusDescription {
+    // unknown
     Unrecognized,
+    // healthy
     SufficientReplicasForMissing,
+    // errors
+    DataCorruption,
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum ScanStatus {
+    // unknown
     Unrecognized,
+    // healthy
     ScrubRepaired,
     Resilvered,
+    // TODO
+    // errors
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum ErrorStatus {
     Unrecognized,
     Ok,
+    // errors
+    DataErrors,
 }
 
 /// Numeric metrics for a device
@@ -228,8 +238,8 @@ impl PoolMetrics {
                 err_if_previous((label, content), self.state.replace(new_state))
             }
             "scan" => {
-                let new_scan_scatus = time_context.parse_scan_content(content)?;
-                err_if_previous((label, content), self.scan_status.replace(new_scan_scatus))
+                let new_scan_status = time_context.parse_scan_content(content)?;
+                err_if_previous((label, content), self.scan_status.replace(new_scan_status))
             }
             "config" => {
                 // signals empty line prior to devices table
@@ -373,11 +383,21 @@ impl From<&str> for DeviceStatus {
 // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
 impl From<&str> for PoolStatusDescription {
     fn from(pool_status: &str) -> Self {
+        // use `concat` macro, because...
         // S.I.C. all line-continuations have "\n\t" removed ("somewords getsmooshed")
-        if pool_status.starts_with(
-            "One or more devices could not be used because the label is missing orinvalid.  Sufficient replicas exist for the pool to continuefunctioning in a degraded state"
-        ) {
+        const SUFFICIENT_REPLICAS: &str = concat!(
+            "One or more devices could not be used because the label is missing or",
+            "invalid.  Sufficient replicas exist for the pool to continue",
+            "functioning in a degraded state"
+        );
+        const DATA_CORRUPTION: &str = concat!(
+            "One or more devices has experienced an error resulting in data",
+            "corruption.  Applications may be affected"
+        );
+        if pool_status.starts_with(SUFFICIENT_REPLICAS) {
             Self::SufficientReplicasForMissing
+        } else if pool_status.starts_with(DATA_CORRUPTION) {
+            Self::DataCorruption
         } else {
             eprintln!("Unrecognized PoolStatusDescription: {pool_status:?}");
             Self::Unrecognized
@@ -404,10 +424,14 @@ impl From<&str> for ScanStatus {
 // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
 impl From<&str> for ErrorStatus {
     fn from(error_status: &str) -> Self {
-        #[allow(clippy::single_match_else)] // TODO add more error cases
-        match error_status {
-            "No known data errors" => Self::Ok,
-            _ => {
+        if error_status.starts_with("No known data errors") {
+            Self::Ok
+        } else {
+            let (_first_word, remainder) =
+                error_status.split_once(' ').unwrap_or((error_status, ""));
+            if remainder.starts_with("data errors") {
+                Self::DataErrors
+            } else {
                 eprintln!("Unrecognized ErrorStatus: {error_status:?}");
                 Self::Unrecognized
             }

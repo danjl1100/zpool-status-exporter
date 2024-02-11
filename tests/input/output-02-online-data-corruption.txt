@@ -6,7 +6,7 @@ zpool_status_export_pool_status_desc{pool="jeremy"}=50
 zpool_status_export_scan_state{pool="jeremy"}=10
 # Scan age in hours
 zpool_status_export_scan_age{pool="jeremy"}=0
-# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors= 50
+# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 zpool_status_export_error_state{pool="jeremy"}=50
 # Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 zpool_status_export_dev_state{pool="jeremy",dev=""}=10
