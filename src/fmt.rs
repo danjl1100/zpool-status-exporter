@@ -25,12 +25,20 @@ value_enum! {
         Unavail  => 100,
     }
     #[allow(missing_docs)]
+    pub enum PoolStatusDescriptionValue for PoolStatusDescription {
+        #[default]
+        Normal => 0,
+        Unrecognized => 1,
+        SufficientReplicasForMissing => 10,
+    }
+    #[allow(missing_docs)]
     pub enum ScanStatusValue for ScanStatus {
         #[default]
         UnknownMissing => 0,
         Unrecognized => 1,
         // healthy
         ScrubRepaired => 10,
+        Resilvered => 15,
         // errors
         // TODO Add new statuses here
     }
@@ -46,7 +54,9 @@ value_enum! {
     }
 }
 
-use crate::zfs::{DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, ScanStatus};
+use crate::zfs::{
+    DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, PoolStatusDescription, ScanStatus,
+};
 use std::time::Instant;
 
 struct FormatPoolMetrics {
@@ -87,6 +97,7 @@ enum_all! {
     #[derive(Clone, Copy)]
     enum PoolSections {
         PoolState,
+        PoolStatusDescription,
         ScanState,
         ScanAge,
         ErrorState,
@@ -102,6 +113,14 @@ impl FormatPoolMetrics {
                 S::PoolState => {
                     writeln!(f, "# Pool state: {}", DeviceStatusValue::summarize_values())?;
                     "pool_state"
+                }
+                S::PoolStatusDescription => {
+                    writeln!(
+                        f,
+                        "# Pool status description: {}",
+                        PoolStatusDescriptionValue::summarize_values()
+                    )?;
+                    "pool_status_desc"
                 }
                 S::ScanState => {
                     writeln!(f, "# Scan status: {}", ScanStatusValue::summarize_values())?;
@@ -124,12 +143,16 @@ impl FormatPoolMetrics {
                 let PoolMetrics {
                     name,
                     state,
+                    pool_status,
                     scan_status,
                     devices: _, // see `fmt_device_sections`
                     error,
                 } = pool;
                 let value = match section {
                     S::PoolState => DeviceStatusValue::from_opt(state).into(),
+                    S::PoolStatusDescription => {
+                        PoolStatusDescriptionValue::from_opt(pool_status).into()
+                    }
                     S::ScanState => ScanStatusValue::from_opt(scan_status).into(),
                     S::ScanAge => {
                         let seconds = scan_status.as_ref().map_or(0.0, |&(_, scan_time)| {

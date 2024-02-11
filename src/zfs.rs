@@ -19,6 +19,7 @@ use time::{macros::format_description, OffsetDateTime, PrimitiveDateTime};
 pub struct PoolMetrics {
     pub name: String,
     pub state: Option<DeviceStatus>,
+    pub pool_status: Option<PoolStatusDescription>,
     pub scan_status: Option<(ScanStatus, OffsetDateTime)>,
     pub devices: Vec<DeviceMetrics>,
     pub error: Option<ErrorStatus>,
@@ -43,9 +44,16 @@ pub enum DeviceStatus {
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
+pub enum PoolStatusDescription {
+    Unrecognized,
+    SufficientReplicasForMissing,
+}
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug)]
 pub enum ScanStatus {
     Unrecognized,
     ScrubRepaired,
+    Resilvered,
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
@@ -71,10 +79,11 @@ pub struct DeviceMetrics {
     pub errors_checksum: u32,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 enum ZpoolStatusSection {
     #[default]
     Header,
+    BlankBeforeDevices,
     Devices,
 }
 
@@ -97,9 +106,23 @@ impl TimeContext {
         let mut pools = vec![];
         // disambiguate from header sections and devices (which may contain COLON)
         let mut current_section = ZpoolStatusSection::default();
-        for line in zpool_output.lines() {
+        let mut lines = zpool_output.lines().peekable();
+        while let Some(line) = lines.next() {
+            // NOTE allocation required for "greedy line append" case in Header
+            let mut line = line.to_owned();
             match current_section {
                 ZpoolStatusSection::Header => {
+                    {
+                        // detect line continuations and concatenate
+                        while let Some(next_line) = lines.peek() {
+                            if let Some(continuation) = next_line.strip_prefix('\t') {
+                                line += continuation;
+                                lines.next();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                     if let Some((label, content)) = line.split_once(':') {
                         let label = label.trim();
                         let content = content.trim();
@@ -108,18 +131,39 @@ impl TimeContext {
                             pools.push(PoolMetrics::new(name));
                             Ok(())
                         } else if let Some(pool) = pools.last_mut() {
-                            pool.parse_line_header(label, content, self)
+                            let header_result = pool.parse_line_header(label, content, self);
+
+                            if let Ok(Some(next_section)) = &header_result {
+                                current_section = *next_section;
+                            }
+                            header_result.map(|_| ())
                         } else {
                             Err(anyhow::anyhow!("missing pool specifier, found header line"))
                         }
-                    } else if line.starts_with("\tNAME ") {
-                        current_section = ZpoolStatusSection::Devices;
-                        Ok(())
                     } else if line.trim().is_empty() {
                         // ignore empty line
                         Ok(())
                     } else {
                         Err(anyhow::anyhow!("unknown line in header"))
+                    }
+                }
+                ZpoolStatusSection::BlankBeforeDevices => {
+                    if line.trim().is_empty() {
+                        if let Some(next_line) = lines.peek() {
+                            if next_line.starts_with("\tNAME ") {
+                                lines.next();
+                                current_section = ZpoolStatusSection::Devices;
+                                Ok(())
+                            } else {
+                                Err(anyhow::anyhow!(
+                                    "expected device table labels, found: {next_line:?}"
+                                ))
+                            }
+                        } else {
+                            Err(anyhow::anyhow!("missing line for device table labels"))
+                        }
+                    } else {
+                        Err(anyhow::anyhow!("expected blank line before devices"))
                     }
                 }
                 ZpoolStatusSection::Devices => {
@@ -129,7 +173,7 @@ impl TimeContext {
                         current_section = ZpoolStatusSection::Header;
                         Ok(())
                     } else if let Some(pool) = pools.last_mut() {
-                        pool.parse_line_device(line)
+                        pool.parse_line_device(&line)
                     } else {
                         Err(anyhow::anyhow!("missing pool specifier"))
                     }
@@ -146,6 +190,7 @@ impl PoolMetrics {
         PoolMetrics {
             name,
             state: None,
+            pool_status: None,
             scan_status: None,
             devices: vec![],
             error: None,
@@ -158,21 +203,27 @@ impl PoolMetrics {
         label: &str,
         content: &str,
         time_context: &TimeContext,
-    ) -> anyhow::Result<()> {
-        fn err_if_previous(
+    ) -> anyhow::Result<Option<ZpoolStatusSection>> {
+        fn err_if_previous<T>(
             (label, content): (&str, &str),
             previous: Option<impl std::fmt::Debug>,
-        ) -> anyhow::Result<()> {
+        ) -> anyhow::Result<Option<T>> {
             if let Some(previous) = previous {
                 Err(anyhow::anyhow!(
                     "duplicate {label}: {previous:?} and {content:?}"
                 ))
             } else {
-                Ok(())
+                Ok(None)
             }
         }
         match label {
+            "status" => {
+                // status - a short description of the state
+                let new_pool_status = content.into();
+                err_if_previous((label, content), self.pool_status.replace(new_pool_status))
+            }
             "state" => {
+                // state - single token, e.g. DEGRADED, ONLINE
                 let new_state = content.into();
                 err_if_previous((label, content), self.state.replace(new_state))
             }
@@ -181,9 +232,10 @@ impl PoolMetrics {
                 err_if_previous((label, content), self.scan_status.replace(new_scan_scatus))
             }
             "config" => {
+                // signals empty line prior to devices table
                 if content.is_empty() {
                     // ignore content
-                    Ok(())
+                    Ok(Some(ZpoolStatusSection::BlankBeforeDevices))
                 } else {
                     Err(anyhow::anyhow!(
                         "expected empty content for label {label}, found: {content:?}"
@@ -193,6 +245,10 @@ impl PoolMetrics {
             "errors" => {
                 let new_error = content.into();
                 err_if_previous((label, content), self.error.replace(new_error))
+            }
+            "action" | "see" => {
+                // ignore (no metrics)
+                Ok(None)
             }
             unknown => Err(anyhow::anyhow!("unknown label: {unknown:?}")),
         }
@@ -286,19 +342,6 @@ impl FromStr for DeviceMetrics {
 }
 
 // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
-impl From<&str> for ScanStatus {
-    fn from(scan_status: &str) -> Self {
-        // Key focus: "WHAT" state, and "AS OF WHEN"
-        // ignore all other numeric details
-        if scan_status.starts_with("scrub repaired") {
-            Self::ScrubRepaired
-        } else {
-            Self::Unrecognized
-        }
-    }
-}
-
-// NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
 //
 // Pool status:
 // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/lib/libzfs/libzfs_pool.c#L247>
@@ -309,8 +352,8 @@ impl From<&str> for ScanStatus {
 // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/cmd/zpool/zpool_main.c#L183>
 //
 impl From<&str> for DeviceStatus {
-    fn from(scan_status: &str) -> Self {
-        match scan_status {
+    fn from(device_status: &str) -> Self {
+        match device_status {
             "ONLINE" => Self::Online,
             "OFFLINE" => Self::Offline,
             "SPLIT" => Self::Split,
@@ -319,16 +362,55 @@ impl From<&str> for DeviceStatus {
             "SUSPENDED" => Self::Suspended,
             "REMOVED" => Self::Removed,
             "UNAVAIL" => Self::Unavail,
-            _ => Self::Unrecognized,
+            _ => {
+                eprintln!("Unrecognized DeviceStatus: {device_status:?}");
+                Self::Unrecognized
+            }
         }
     }
 }
+
+// NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
+impl From<&str> for PoolStatusDescription {
+    fn from(pool_status: &str) -> Self {
+        // S.I.C. all line-continuations have "\n\t" removed ("somewords getsmooshed")
+        if pool_status.starts_with(
+            "One or more devices could not be used because the label is missing orinvalid.  Sufficient replicas exist for the pool to continuefunctioning in a degraded state"
+        ) {
+            Self::SufficientReplicasForMissing
+        } else {
+            eprintln!("Unrecognized PoolStatusDescription: {pool_status:?}");
+            Self::Unrecognized
+        }
+    }
+}
+
+// NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
+impl From<&str> for ScanStatus {
+    fn from(scan_status: &str) -> Self {
+        // Scan status - only focus on: "WHAT" state (and "AS OF WHEN", elsewhere)
+        // ignore all other numeric details
+        if scan_status.starts_with("scrub repaired") {
+            Self::ScrubRepaired
+        } else if scan_status.starts_with("resilvered") {
+            Self::Resilvered
+        } else {
+            eprintln!("Unrecognized ScanStatus: {scan_status:?}");
+            Self::Unrecognized
+        }
+    }
+}
+
 // NOTE: Infallible, so that errors will be shown (reporting service doesn't go down)
 impl From<&str> for ErrorStatus {
-    fn from(scan_status: &str) -> Self {
-        match scan_status {
+    fn from(error_status: &str) -> Self {
+        #[allow(clippy::single_match_else)] // TODO add more error cases
+        match error_status {
             "No known data errors" => Self::Ok,
-            _ => Self::Unrecognized,
+            _ => {
+                eprintln!("Unrecognized ErrorStatus: {error_status:?}");
+                Self::Unrecognized
+            }
         }
     }
 }

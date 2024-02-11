@@ -73,8 +73,16 @@ fn run_bin() -> anyhow::Result<()> {
     let stdout = String::from_utf8(stdout)?;
     let stderr = String::from_utf8(stderr)?;
 
-    // no errors
-    assert_eq!(stderr, "", "stderr");
+    // no fatal errors
+    //
+    // "NOTSURE?" is mentioned twice:
+    // 1. once for fail-fast startup run, and
+    // 2. again for the "/metrics" request
+    assert_eq!(
+        stderr,
+        "Unrecognized DeviceStatus: \"NOTSURE?\"\nUnrecognized DeviceStatus: \"NOTSURE?\"\n",
+        "stderr"
+    );
     assert_eq!(
         stdout,
         format!("Listening at http://{listen_address}\n"),

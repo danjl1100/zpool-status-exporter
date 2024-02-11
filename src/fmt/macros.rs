@@ -37,7 +37,7 @@ macro_rules! value_enum {
             $(#[$meta:meta])*
             $vis:vis enum $name:ident for $source:ident {
                 #[default]
-                UnknownMissing => 0,
+                $UnknownMissing:ident => 0,
                 $(
                     $(#[$meta_inner:meta])*
                     $variant:ident => $variant_value:expr
@@ -51,7 +51,7 @@ macro_rules! value_enum {
                 $(#[$meta])*
                 $vis enum $name {
                     #[default]
-                    UnknownMissing = 0,
+                    $UnknownMissing = 0,
                     $(
                         $(#[$meta_inner])*
                         $variant = $variant_value
@@ -89,7 +89,7 @@ macro_rules! value_enum {
                 #[allow(clippy::must_use_candidate, missing_docs)]
                 pub fn value(self) -> u32 {
                     match self {
-                        Self::UnknownMissing => 0,
+                        Self::$UnknownMissing => 0,
                         $(Self::$variant => $variant_value),+
                     }
                 }
