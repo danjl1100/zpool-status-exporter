@@ -93,15 +93,14 @@ impl TimeContext {
 
         // ensure fail-fast
         {
-            let fake_start = Instant::now();
-            self.get_metrics_str(fake_start)?;
+            self.now().get_metrics_str()?;
         }
 
         println!("Listening at http://{listen_address:?}");
 
         while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
             if let Some(request) = server.recv_timeout(RECV_TIMEOUT)? {
-                self.handle_request(request);
+                self.now().handle_request(request);
             } else {
                 std::thread::sleep(RECV_SLEEP);
             }
@@ -125,16 +124,31 @@ impl TimeContext {
                 }
             })
     }
-    fn handle_request(&self, request: tiny_http::Request) {
+    /// Creates a new timestamp instance
+    pub fn now(&self) -> Timestamp<'_> {
+        Timestamp {
+            time_context: self,
+            time: Instant::now(),
+            datetime: time::OffsetDateTime::now_utc(),
+        }
+    }
+}
+/// Start time for parsing timestamps and formatting time-based metrics
+#[must_use]
+pub struct Timestamp<'a> {
+    time_context: &'a TimeContext,
+    time: Instant,
+    datetime: time::OffsetDateTime,
+}
+impl<'a> Timestamp<'a> {
+    fn handle_request(self, request: tiny_http::Request) {
         const ENDPOINT_METRICS: &str = "/metrics";
         const HTML_NOT_FOUND: u32 = 404;
-
-        let start_time = Instant::now();
 
         let result = {
             let url = request.url();
             if url == ENDPOINT_METRICS {
-                let response = self.get_metrics_response(start_time);
+                let response = self.get_metrics_response();
                 request.respond(response).context("metrics response")
             } else {
                 let response = tiny_http::Response::empty(HTML_NOT_FOUND);
@@ -145,19 +159,27 @@ impl TimeContext {
             eprintln!("failed to send response: {err:#}");
         }
     }
-    fn get_metrics_response(&self, start_time: Instant) -> tiny_http::Response<impl std::io::Read> {
+    // Infallible, returns commented error response on failure
+    fn get_metrics_response(&self) -> tiny_http::Response<impl std::io::Read> {
         let response_str = self
-            .get_metrics_str(start_time)
+            .get_metrics_str()
             .unwrap_or_else(|err| format!("# ERROR:\n# {err:#}"));
         tiny_http::Response::from_string(response_str)
     }
 
-    fn get_metrics_str(&self, start_time: Instant) -> anyhow::Result<String> {
+    fn get_metrics_str(&self) -> anyhow::Result<String> {
         let zpool_output = exec::zpool_status()?;
-        let zpool_metrics = self.parse_zfs_metrics(&zpool_output)?;
+        self.get_metrics_for_output(&zpool_output)
+    }
 
-        let now_date = time::OffsetDateTime::now_utc();
-        Ok(fmt::format_metrics(zpool_metrics, start_time, now_date))
+    /// Parses the `zpool_output` string and returns a formatted Prometheus-style metrics document
+    ///
+    /// # Errors
+    /// Returns errors when [`TimeContext::parse_zfs_metrics`] fails
+    pub fn get_metrics_for_output(&self, zpool_output: &str) -> anyhow::Result<String> {
+        let zpool_metrics = self.time_context.parse_zfs_metrics(zpool_output)?;
+
+        Ok(fmt::format_metrics(zpool_metrics, self.time, self.datetime))
     }
 }
 

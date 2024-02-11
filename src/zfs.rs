@@ -265,7 +265,7 @@ impl TimeContext {
             anyhow::bail!("missing timestamp separator token ON")
         };
         let format = format_description!(
-                "[weekday repr:short] [month repr:short] [day] [hour padding:zero repr:24]:[minute]:[second] [year]"
+                "[weekday repr:short] [month repr:short] [day padding:space] [hour padding:zero repr:24]:[minute]:[second] [year]"
             );
         let scan_status = ScanStatus::from(message);
         let timestamp = PrimitiveDateTime::parse(timestamp, &format)
