@@ -81,7 +81,11 @@ fn run_bin() -> anyhow::Result<()> {
     // 2. again for the "/metrics" request
     assert_eq!(
         stderr,
-        "Unrecognized DeviceStatus: \"NOTSURE?\"\nUnrecognized DeviceStatus: \"NOTSURE?\"\n",
+        concat!(
+            "Unrecognized DeviceStatus: \"NOTSURE?\"\n",
+            "Unrecognized DeviceStatus: \"NOTSURE?\"\n",
+            "user requested shutdown...\n",
+        ),
         "stderr"
     );
     assert_eq!(

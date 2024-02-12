@@ -59,6 +59,9 @@
         crate = pkgs.callPackage ./nix/crate.nix {
           inherit system advisory-db craneLib;
           src = craneLib.path ./.;
+          extraBuildArgs = {
+            installPhaseCommand = "mkdir -p $out/bin; cp target/release/${crate-name} $out/bin/";
+          };
         };
       in rec {
         checks =

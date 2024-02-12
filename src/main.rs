@@ -22,6 +22,7 @@ fn main() -> anyhow::Result<()> {
 
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
     ctrlc::set_handler(move || {
+        eprintln!("user requested shutdown...");
         shutdown_tx
             .send(zpool_status_exporter::Shutdown)
             .expect("termination channel send failed");
