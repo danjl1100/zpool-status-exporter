@@ -48,6 +48,7 @@ pub enum PoolStatusDescription {
     // unknown
     Unrecognized,
     // healthy
+    FeaturesAvailable,
     SufficientReplicasForMissing,
     // errors
     DataCorruption,
@@ -416,10 +417,17 @@ impl From<&str> for PoolStatusDescription {
             "\n",
             "corruption.  Applications may be affected"
         );
+        const FEATURES_AVAILABLE: &str = concat!(
+            "Some supported and requested features are not enabled on the pool.",
+            "\n",
+            "The pool can still be used, but some features are unavailable.",
+        );
         if pool_status.starts_with(SUFFICIENT_REPLICAS) {
             Self::SufficientReplicasForMissing
         } else if pool_status.starts_with(DATA_CORRUPTION) {
             Self::DataCorruption
+        } else if pool_status.starts_with(FEATURES_AVAILABLE) {
+            Self::FeaturesAvailable
         } else {
             eprintln!("Unrecognized PoolStatusDescription: {pool_status:?}");
             Self::Unrecognized

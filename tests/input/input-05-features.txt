@@ -1,3 +1,4 @@
+TEST_TIMESTAMP=0
   pool: rpool
  state: ONLINE
 status: Some supported and requested features are not enabled on the pool.

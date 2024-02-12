@@ -29,6 +29,8 @@ value_enum! {
         #[default]
         Normal => 0,
         Unrecognized => 1,
+        // normal
+        FeaturesAvailable => 5,
         SufficientReplicasForMissing => 10,
         // errors
         DataCorruption => 50,

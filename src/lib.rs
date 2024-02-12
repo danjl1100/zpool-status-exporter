@@ -1,6 +1,14 @@
 //! Prometheus-style exporter for `zpool status` numeric metrics
 //!
 //! The most notable output is the duration since the last scrub (if displayed)
+//!
+//! ---
+//!
+//! This crate is accurately described as an attempt at "the more brittle text parsing required".
+//!
+//! Inspired by a comment on an issue in
+//! [github.com:pdf/zfs_exporter](https://github.com/pdf/zfs_exporter/issues/20#issuecomment-1047249253).
+//!
 
 // teach me
 #![deny(clippy::pedantic)]
