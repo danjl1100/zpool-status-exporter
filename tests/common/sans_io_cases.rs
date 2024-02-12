@@ -55,11 +55,10 @@ fn case2() -> anyhow::Result<()> {
     )
 }
 
-// TODO
-// #[test]
-// fn case3() -> anyhow::Result<()> {
-//     test_case(
-//         include_str!("../input/input-03-resilvered.txt"),
-//         include_str!("../input/output-03-resilvered.txt"),
-//     )
-// }
+#[test]
+fn case3() -> anyhow::Result<()> {
+    test_case(
+        include_str!("../input/input-03-resilvered.txt"),
+        include_str!("../input/output-03-resilvered.txt"),
+    )
+}
