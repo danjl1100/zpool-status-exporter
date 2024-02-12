@@ -60,6 +60,8 @@ pub enum ScanStatus {
     // healthy
     ScrubRepaired,
     Resilvered,
+    // misc
+    ScrubInProgress,
     // TODO
     // errors
 }
@@ -126,6 +128,7 @@ impl TimeContext {
                         // detect line continuations and concatenate
                         while let Some(next_line) = lines.peek() {
                             if let Some(continuation) = next_line.strip_prefix('\t') {
+                                line += "\n";
                                 line += continuation;
                                 lines.next();
                             } else {
@@ -271,16 +274,32 @@ impl PoolMetrics {
 }
 impl TimeContext {
     fn parse_scan_content(&self, content: &str) -> anyhow::Result<(ScanStatus, OffsetDateTime)> {
-        let Some((message, timestamp)) = content.split_once(" on ") else {
-            anyhow::bail!("missing timestamp separator token ON")
+        const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
+
+        // remove extra lines - status is only on first line
+        let (content, _extra_lines) = content.split_once('\n').unwrap_or((content, ""));
+
+        // extract message and timestamp strings
+        let Some((message, timestamp)) = TIME_SEPARATORS
+            .iter()
+            .find_map(|sep| content.split_once(sep))
+        else {
+            anyhow::bail!("missing timestamp separator token")
         };
-        let format = format_description!(
+
+        // parse message
+        let scan_status = ScanStatus::from(message);
+
+        // parse timestamp
+        let timestamp = {
+            let format = format_description!(
                 "[weekday repr:short] [month repr:short] [day padding:space] [hour padding:zero repr:24]:[minute]:[second] [year]"
             );
-        let scan_status = ScanStatus::from(message);
-        let timestamp = PrimitiveDateTime::parse(timestamp, &format)
-            .with_context(|| format!("timestamp string {timestamp:?}"))?;
-        let timestamp = timestamp.assume_offset(self.local_offset);
+            let timestamp = PrimitiveDateTime::parse(timestamp, &format)
+                .with_context(|| format!("timestamp string {timestamp:?}"))?;
+            timestamp.assume_offset(self.local_offset)
+        };
+
         Ok((scan_status, timestamp))
     }
 }
@@ -387,11 +406,14 @@ impl From<&str> for PoolStatusDescription {
         // S.I.C. all line-continuations have "\n\t" removed ("somewords getsmooshed")
         const SUFFICIENT_REPLICAS: &str = concat!(
             "One or more devices could not be used because the label is missing or",
+            "\n",
             "invalid.  Sufficient replicas exist for the pool to continue",
+            "\n",
             "functioning in a degraded state"
         );
         const DATA_CORRUPTION: &str = concat!(
             "One or more devices has experienced an error resulting in data",
+            "\n",
             "corruption.  Applications may be affected"
         );
         if pool_status.starts_with(SUFFICIENT_REPLICAS) {
@@ -414,6 +436,8 @@ impl From<&str> for ScanStatus {
             Self::ScrubRepaired
         } else if scan_status.starts_with("resilvered") {
             Self::Resilvered
+        } else if scan_status.starts_with("scrub in progress") {
+            Self::ScrubInProgress
         } else {
             eprintln!("Unrecognized ScanStatus: {scan_status:?}");
             Self::Unrecognized

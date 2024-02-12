@@ -2,7 +2,7 @@
 zpool_status_export_pool_state{pool="dummy"}=10
 # Pool status description: Normal = 0, Unrecognized = 1, SufficientReplicasForMissing = 10, DataCorruption = 50
 zpool_status_export_pool_status_desc{pool="dummy"}=0
-# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15
+# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30
 zpool_status_export_scan_state{pool="dummy"}=15
 # Scan age in hours
 zpool_status_export_scan_age{pool="dummy"}=-474332.512222

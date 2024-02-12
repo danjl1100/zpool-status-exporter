@@ -1,0 +1,30 @@
+# Pool state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+zpool_status_export_pool_state{pool="neptune"}=10
+# Pool status description: Normal = 0, Unrecognized = 1, SufficientReplicasForMissing = 10, DataCorruption = 50
+zpool_status_export_pool_status_desc{pool="neptune"}=0
+# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30
+zpool_status_export_scan_state{pool="neptune"}=30
+# Scan age in hours
+zpool_status_export_scan_age{pool="neptune"}=0
+# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
+zpool_status_export_error_state{pool="neptune"}=10
+# Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+zpool_status_export_dev_state{pool="neptune",dev=""}=10
+zpool_status_export_dev_state{pool="neptune",dev="mirror-0"}=10
+zpool_status_export_dev_state{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"}=10
+zpool_status_export_dev_state{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"}=10
+# Read error count
+zpool_status_export_dev_errors_read{pool="neptune",dev=""}=0
+zpool_status_export_dev_errors_read{pool="neptune",dev="mirror-0"}=0
+zpool_status_export_dev_errors_read{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"}=0
+zpool_status_export_dev_errors_read{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"}=0
+# Write error count
+zpool_status_export_dev_errors_write{pool="neptune",dev=""}=0
+zpool_status_export_dev_errors_write{pool="neptune",dev="mirror-0"}=0
+zpool_status_export_dev_errors_write{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"}=0
+zpool_status_export_dev_errors_write{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"}=0
+# Checksum error count
+zpool_status_export_dev_errors_checksum{pool="neptune",dev=""}=0
+zpool_status_export_dev_errors_checksum{pool="neptune",dev="mirror-0"}=0
+zpool_status_export_dev_errors_checksum{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"}=0
+zpool_status_export_dev_errors_checksum{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"}=0

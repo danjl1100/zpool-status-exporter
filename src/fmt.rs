@@ -41,6 +41,8 @@ value_enum! {
         // healthy
         ScrubRepaired => 10,
         Resilvered => 15,
+        // misc
+        ScrubInProgress => 30,
         // errors
         // TODO Add new statuses here
     }

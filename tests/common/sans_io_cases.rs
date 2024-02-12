@@ -61,4 +61,5 @@ test_cases! {
     case01 {01-corrupted}
     case02 {02-online-data-corruption}
     case03 {03-resilvered}
+    case04 {04-scrub-progress}
 }
