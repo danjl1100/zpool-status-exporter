@@ -39,26 +39,26 @@ fn test_case(input: &str, expected: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn case1() -> anyhow::Result<()> {
-    test_case(
-        include_str!("../input/input-01-corrupted.txt"),
-        include_str!("../input/output-01-corrupted.txt"),
-    )
+macro_rules! test_cases {
+    (
+        $(
+            $test_label:ident {$($name:tt)+}
+        )+
+    ) => {
+        $(
+            #[test]
+            fn $test_label() -> anyhow::Result<()> {
+                test_case(
+                    include_str!(concat!("../input/input-",  stringify!($($name)+), ".txt")),
+                    include_str!(concat!("../input/output-", stringify!($($name)+), ".txt")),
+                )
+            }
+        )+
+    };
 }
 
-#[test]
-fn case2() -> anyhow::Result<()> {
-    test_case(
-        include_str!("../input/input-02-online-data-corruption.txt"),
-        include_str!("../input/output-02-online-data-corruption.txt"),
-    )
-}
-
-#[test]
-fn case3() -> anyhow::Result<()> {
-    test_case(
-        include_str!("../input/input-03-resilvered.txt"),
-        include_str!("../input/output-03-resilvered.txt"),
-    )
+test_cases! {
+    case01 {01-corrupted}
+    case02 {02-online-data-corruption}
+    case03 {03-resilvered}
 }
