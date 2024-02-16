@@ -88,6 +88,7 @@ in {
     (crate)
     checks
     ;
+
   inherit
     apps
     app-default

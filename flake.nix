@@ -1,4 +1,6 @@
 {
+  # NOTE: This `flake.nix` is just an entrypoint into `package.nix`
+  #       Where possible, all metadata should be defined in `package.nix` for non-flake consumers
   description = "prometheus exporter for zpool-status metrics";
 
   inputs = {
@@ -51,26 +53,18 @@
             ;
           inherit (flake-utils.lib) mkApp;
         };
-        inherit (package) crate-name;
+
+        alejandra = pkgs.callPackage ./nix/alejandra.nix {};
       in {
         inherit (package) apps;
 
         checks =
           package.checks
-          // {
-            nix-alejandra = pkgs.stdenvNoCC.mkDerivation {
-              name = "nix-alejandra";
-              src = pkgs.lib.cleanSourceWith {
-                src = ./.;
-                filter = path: type: ((type == "directory") || (pkgs.lib.hasSuffix ".nix" path));
-              };
-              phases = ["buildPhase"];
-              nativeBuildInputs = [pkgs.alejandra];
-              buildPhase = "(alejandra -qc $src || alejandra -c $src) > $out";
-            };
-          };
+          // alejandra.checks;
 
-        packages = {
+        packages = let
+          inherit (package) crate-name;
+        in {
           ${crate-name} = package.${crate-name};
           default = package.${crate-name};
         };
