@@ -43,13 +43,13 @@
 
   # Build the actual crate itself, reusing the dependency
   # artifacts from above.
-  my-crate = craneLib.buildPackage (commonArgs
+  package = craneLib.buildPackage (commonArgs
     // {
       inherit cargoArtifacts;
     }
     // extraBuildArgs);
 
-  my-crate-doc = craneLib.cargoDoc (commonArgs
+  doc = craneLib.cargoDoc (commonArgs
     // {
       inherit cargoArtifacts;
     }
@@ -60,7 +60,7 @@
         cargoDocExtraArgs = "--workspace --no-deps"; # override default which is "--no-deps"
       }
     ));
-  my-crate-doc-deps = craneLib.cargoDoc (commonArgs
+  doc-deps = craneLib.cargoDoc (commonArgs
     // {
       inherit cargoArtifacts;
     }
@@ -74,9 +74,9 @@
 in rec {
   checks = {
     # Build the crate as part of `nix flake check` for convenience
-    inherit my-crate;
+    inherit package;
 
-    inherit my-crate-doc;
+    inherit doc;
 
     # Run clippy (and deny all warnings) on the crate source,
     # again, resuing the dependency artifacts from above.
@@ -84,7 +84,7 @@ in rec {
     # Note that this is done as a separate derivation so that
     # we can block the CI if there are issues here, but not
     # prevent downstream consumers from building our crate by itself.
-    my-crate-clippy = craneLib.cargoClippy (commonArgs
+    clippy = craneLib.cargoClippy (commonArgs
       // {
         inherit cargoArtifacts;
         # deny warnings (kinda strict, but let's see how it goes)
@@ -93,19 +93,19 @@ in rec {
       });
 
     # Check formatting
-    my-crate-fmt = craneLib.cargoFmt {
+    fmt = craneLib.cargoFmt {
       inherit src;
     };
 
     # Audit dependencies
-    my-crate-audit = craneLib.cargoAudit {
+    audit = craneLib.cargoAudit {
       inherit src advisory-db;
     };
 
     # Run tests with cargo-nextest
     # Consider setting `doCheck = false` on `my-crate` if you do not want
     # the tests to run twice
-    my-crate-nextest = craneLib.cargoNextest (commonArgs
+    nextest = craneLib.cargoNextest (commonArgs
       // {
         inherit cargoArtifacts;
         partitions = 1;
@@ -120,51 +120,11 @@ in rec {
       });
   };
 
-  package = my-crate;
-  doc = my-crate-doc;
-  doc-deps = my-crate-doc-deps;
-
-  drv-open-doc = let
-    open-cmd =
-      if pkgs.stdenv.isDarwin
-      then "open"
-      else "${pkgs.xdg-utils}/bin/xdg-open";
-    dash-to-underscores = input: builtins.replaceStrings ["-"] ["_"] input;
-  in {
-    for-crate = crate-name:
-      pkgs.writeShellApplication {
-        name = "open-doc-${crate-name}";
-        text = ''
-          echo "Opening docs for crate \"${crate-name}\""
-          ${open-cmd} "file://${my-crate-doc}/share/doc/${dash-to-underscores crate-name}/index.html"
-        '';
-      };
-    for-crate-deps = crate-name:
-      pkgs.writeShellApplication {
-        name = "open-doc-${crate-name}";
-        text = ''
-          echo "Opening docs for crate \"${crate-name}\""
-          ${open-cmd} "file://${my-crate-doc-deps}/share/doc/${dash-to-underscores crate-name}/index.html"
-        '';
-      };
-    for-std = toolchainWithRustDoc:
-      pkgs.writeShellApplication {
-        name = "open-doc-std";
-        text = ''
-          echo "Opening docs for rust std..."
-          ${open-cmd} file://${toolchainWithRustDoc}/share/doc/rust/html/std/index.html
-        '';
-      };
-    inherit open-cmd;
-  };
-
-  devShellFn = {craneLib ? craneLib, ...} @ inputs: let
-    inputs_sanitized = builtins.removeAttrs inputs ["craneLib"];
-  in
-    craneLib.devShell (inputs_sanitized
-      // {
-        inherit checks;
-      });
+  inherit
+    package
+    doc
+    doc-deps
+    ;
 
   buildTrunkPackage = {
     pname,

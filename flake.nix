@@ -37,35 +37,26 @@
   in
     flake-utils.lib.eachSystem target_systems (
       system: let
-        overlays = [
-          rust-overlay.overlays.default
-        ];
         pkgs = import nixpkgs {
-          inherit system overlays;
+          inherit system;
+          overlays = [
+            rust-overlay.overlays.default
+          ];
         };
 
-        # crate
-        crate-name = "zpool-status-exporter";
-
-        rustChannel = "beta";
-        rustVersion = "latest";
-        rustToolchain = pkgs.rust-bin.${rustChannel}.${rustVersion}.default;
-        rustToolchainForDevshell = rustToolchain.override {
-          extensions = ["rust-analyzer" "rust-src"];
+        package = pkgs.callPackage ./nix/package.nix {
+          inherit
+            advisory-db
+            crane
+            ;
+          inherit (flake-utils.lib) mkApp;
         };
-        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
-        craneLibForDevShell = (crane.mkLib pkgs).overrideToolchain rustToolchainForDevshell;
+        inherit (package) crate-name;
+      in {
+        inherit (package) apps;
 
-        crate = pkgs.callPackage ./nix/crate.nix {
-          inherit system advisory-db craneLib;
-          src = craneLib.path ./.;
-          extraBuildArgs = {
-            installPhaseCommand = "mkdir -p $out/bin; cp target/release/${crate-name} $out/bin/";
-          };
-        };
-      in rec {
         checks =
-          crate.checks
+          package.checks
           // {
             nix-alejandra = pkgs.stdenvNoCC.mkDerivation {
               name = "nix-alejandra";
@@ -80,25 +71,12 @@
           };
 
         packages = {
-          default = crate.package;
-          ${crate-name} = crate.package;
-        };
-
-        apps = {
-          rust-doc = flake-utils.lib.mkApp {
-            drv = crate.drv-open-doc.for-crate crate-name;
-          };
-          rust-doc-deps = flake-utils.lib.mkApp {
-            drv = crate.drv-open-doc.for-crate-deps crate-name;
-          };
-          rust-doc-std = flake-utils.lib.mkApp {
-            drv = crate.drv-open-doc.for-std rustToolchainForDevshell;
-          };
+          ${crate-name} = package.${crate-name};
+          default = package.${crate-name};
         };
 
         devShells = {
-          default = crate.devShellFn {
-            craneLib = craneLibForDevShell;
+          default = package.devShellFn {
             packages = [
               pkgs.alejandra
               pkgs.bacon
