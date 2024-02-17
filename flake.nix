@@ -33,26 +33,26 @@
       "x86_64-linux"
       # "aarch64-darwin"
     ];
+    arguments.parent_overlay = rust-overlay.overlays.default;
+    arguments.for_package = {
+      inherit
+        advisory-db
+        crane
+        ;
+      inherit (flake-utils.lib) mkApp;
+    };
     nixos = import ./nix/nixos.nix {
-      inherit (self) packages;
+      overlay = self.overlays.default;
     };
   in
     flake-utils.lib.eachSystem target_systems (
       system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [
-            rust-overlay.overlays.default
-          ];
+          overlays = [arguments.parent_overlay];
         };
 
-        package = pkgs.callPackage ./nix/package.nix {
-          inherit
-            advisory-db
-            crane
-            ;
-          inherit (flake-utils.lib) mkApp;
-        };
+        package = pkgs.callPackage ./nix/package.nix arguments.for_package;
 
         alejandra = pkgs.callPackage ./nix/alejandra.nix {};
       in {
@@ -67,6 +67,10 @@
         in {
           ${crate-name} = package.${crate-name};
           default = package.${crate-name};
+
+          vm-tests = pkgs.callPackage ./nix/vm-tests {
+            inherit (nixos) nixosModules;
+          };
         };
 
         devShells = {
@@ -79,5 +83,20 @@
           };
         };
       }
-    );
+    )
+    // {
+      overlays.default = final: prev: let
+        # apply parent overlay
+        parent_overlay = arguments.parent_overlay final prev;
+
+        package = final.callPackage ./nix/package.nix arguments.for_package;
+      in
+        parent_overlay
+        // {
+          # NOTE: infinite recursion when using `${crate-name} = ...` syntax
+          inherit (package) zpool-status-exporter;
+        };
+
+      inherit (nixos) nixosModules;
+    };
 }
