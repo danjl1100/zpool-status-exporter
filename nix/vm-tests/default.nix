@@ -4,7 +4,7 @@
   nixosModules,
 }: let
   test_sources = {
-    no-zfs = ./no-zfs.nix;
+    empty-zfs = ./empty-zfs.nix;
   };
   tests = builtins.mapAttrs (_name: test_source:
     callPackage test_source {
