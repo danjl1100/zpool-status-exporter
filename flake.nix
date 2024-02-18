@@ -7,16 +7,17 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
     };
-    crane.url = "github:ipetkov/crane";
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     advisory-db = {
       url = "github:rustsec/advisory-db";
       flake = false;
     };
-    # decrease total count of flake dependencies by following versions from "rust-overlay" input
-    flake-utils.follows = "rust-overlay/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-23.11";
-    crane.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {
