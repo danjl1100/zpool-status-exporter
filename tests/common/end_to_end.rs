@@ -1,7 +1,7 @@
 use super::MiniReqResult;
 use crate::{
     assert_matches_template,
-    bin_cmd::{BinCommand, BinOutput},
+    common::bin_cmd::{BinCommand, BinOutput},
     HTTP_NOT_FOUND, HTTP_OK,
 };
 use std::{net::SocketAddr, str::FromStr};

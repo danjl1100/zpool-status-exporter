@@ -1,4 +1,4 @@
-use crate::bin_cmd::{BinCommand, BinOutput, FakeZpoolMode};
+use crate::common::bin_cmd::{BinCommand, BinOutput, FakeZpoolMode};
 use std::time::{Duration, Instant};
 
 #[test]
