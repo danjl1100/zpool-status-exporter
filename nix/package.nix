@@ -87,6 +87,7 @@ in {
   inherit
     (crate)
     checks
+    tests-ignored
     ;
 
   inherit

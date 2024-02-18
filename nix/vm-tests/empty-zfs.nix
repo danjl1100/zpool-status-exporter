@@ -14,14 +14,10 @@ in
         enable = true;
         inherit listen_address;
       };
-      # TODO remove debug
-      environment.systemPackages = [
-        pkgs.tmux
-      ];
     };
     testScript = ''
       machine.wait_for_unit("default.target")
       machine.succeed("curl http://${listen_address}/metrics")
-      machine.succeed("curl http://${listen_address}/metrics | grep '# ERROR'")
+      machine.succeed("curl http://${listen_address}/metrics | grep '# no pools reported'")
     '';
   }

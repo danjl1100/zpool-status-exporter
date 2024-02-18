@@ -12,7 +12,8 @@ mod common {
     const LISTEN_ADDRESS_END_TO_END: &str = "127.0.0.1:9583";
     const LISTEN_ADDRESS_CHILD_STDERR_1: &str = "127.0.0.1:9584";
     const LISTEN_ADDRESS_CHILD_STDERR_2: &str = "127.0.0.1:9585";
-    const LISTEN_ADDRESS_CHILD_SILENT: &str = "127.0.0.1:9586";
+    const LISTEN_ADDRESS_CHILD_SILENT_1: &str = "127.0.0.1:9586";
+    const LISTEN_ADDRESS_CHILD_SILENT_2: &str = "127.0.0.1:9587";
 
     type MiniReqResult = Result<minreq::Response, minreq::Error>;
 
@@ -97,6 +98,7 @@ mod bin_cmd {
         NoPools,
         DevsMissing,
         Silent,
+        SleepForever,
     }
     #[derive(Default)]
     pub struct BinCommand {
@@ -136,6 +138,7 @@ mod bin_cmd {
                     FakeZpoolMode::NoPools => "no-pools",
                     FakeZpoolMode::DevsMissing => "devs-missing",
                     FakeZpoolMode::Silent => "silent",
+                    FakeZpoolMode::SleepForever => "sleep-forever",
                 };
                 command.env("FAKE_ZPOOL_MODE", mode_str);
             }
@@ -195,6 +198,10 @@ mod bin_cmd {
             let output = BinOutput::new(output)?;
 
             Ok(output)
+        }
+        pub fn is_finished(&mut self) -> anyhow::Result<bool> {
+            let wait_result = self.subcommand.try_wait()?;
+            Ok(wait_result.is_some())
         }
     }
 

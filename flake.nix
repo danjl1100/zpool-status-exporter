@@ -64,12 +64,22 @@
 
         packages = let
           inherit (package) crate-name;
+
+          vm-tests = pkgs.callPackage ./nix/vm-tests {
+            inherit (nixos) nixosModules;
+          };
         in {
           ${crate-name} = package.${crate-name};
           default = package.${crate-name};
 
-          vm-tests = pkgs.callPackage ./nix/vm-tests {
-            inherit (nixos) nixosModules;
+          inherit vm-tests;
+
+          all-long-tests = pkgs.symlinkJoin {
+            name = "all-long-tests";
+            paths = [
+              vm-tests
+              package.tests-ignored
+            ];
           };
         };
 

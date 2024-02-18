@@ -20,6 +20,7 @@ enum Mode {
     NoPools,
     DevsMissing,
     Silent,
+    SleepForever,
 }
 
 fn main() {
@@ -44,5 +45,8 @@ fn main() {
             eprintln!("/dev/zfs and /proc/self/mounts is needed, yada-yada...");
         }
         Mode::Silent => {}
+        Mode::SleepForever => loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        },
     }
 }

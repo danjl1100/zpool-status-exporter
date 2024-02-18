@@ -92,7 +92,9 @@ const PREFIX: &str = "zpool_status_export";
 
 impl std::fmt::Display for FormatPoolMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.pools.is_empty() {
+        if self.pools.is_empty() {
+            writeln!(f, "# no pools reported")?;
+        } else {
             self.fmt_pool_sections(f)?;
 
             self.fmt_device_sections(f)?;

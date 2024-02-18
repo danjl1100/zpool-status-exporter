@@ -37,6 +37,21 @@
     )
     // commonArgOverrides;
 
+  nextestArgs =
+    commonArgs
+    // {
+      inherit cargoArtifacts;
+      partitions = 1;
+      partitionType = "count";
+      # TODO: enable code coverage, only if it's worth it
+      # } // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+      #   # NB: cargo-tarpaulin only supports x86_64 systems
+      #   # Check code coverage (note: this will not upload coverage anywhere)
+      #   my-crate-coverage = craneLib.cargoTarpaulin (commonArgs // {
+      #     inherit cargoArtifacts;
+      #   });
+    };
+
   # Build *just* the cargo dependencies, so we can reuse
   # all of that work (e.g. via cachix) when running in CI
   cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -105,20 +120,14 @@ in rec {
     # Run tests with cargo-nextest
     # Consider setting `doCheck = false` on `my-crate` if you do not want
     # the tests to run twice
-    nextest = craneLib.cargoNextest (commonArgs
-      // {
-        inherit cargoArtifacts;
-        partitions = 1;
-        partitionType = "count";
-        # TODO: enable code coverage, only if it's worth it
-        # } // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-        #   # NB: cargo-tarpaulin only supports x86_64 systems
-        #   # Check code coverage (note: this will not upload coverage anywhere)
-        #   my-crate-coverage = craneLib.cargoTarpaulin (commonArgs // {
-        #     inherit cargoArtifacts;
-        #   });
-      });
+    nextest = craneLib.cargoNextest nextestArgs;
   };
+
+  # longer tests, not part of normal test suite
+  tests-ignored = craneLib.cargoNextest (nextestArgs
+    // {
+      cargoNextestExtraArgs = "--run-ignored all";
+    });
 
   inherit
     package
