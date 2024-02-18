@@ -92,9 +92,11 @@ const PREFIX: &str = "zpool_status_export";
 
 impl std::fmt::Display for FormatPoolMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fmt_pool_sections(f)?;
+        if !self.pools.is_empty() {
+            self.fmt_pool_sections(f)?;
 
-        self.fmt_device_sections(f)?;
+            self.fmt_device_sections(f)?;
+        }
 
         if let Some(start_time) = self.compute_time_start {
             writeln!(f, "# total duration of the lookup in microseconds")?;

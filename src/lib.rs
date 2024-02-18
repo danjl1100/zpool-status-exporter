@@ -210,7 +210,10 @@ pub mod exec {
     //! I/O portion of executing status commands
 
     use anyhow::Context;
-    use std::process::Command;
+    use std::{
+        process::{Command, Output, Stdio},
+        time::{Duration, Instant},
+    };
 
     /// Returns the output of the `zpool status` command
     ///
@@ -219,16 +222,47 @@ pub mod exec {
     pub fn zpool_status() -> anyhow::Result<String> {
         const ARGS: &[&str] = &["status"];
 
-        run_command("/sbin/zpool", ARGS)
+        let output = run_command("/sbin/zpool", ARGS)
             .or_else(|_| run_command("zpool", ARGS))
-            .context("running \"zpool status\" command")
+            .context("running \"zpool status\" command")?;
+        if output.is_empty() {
+            anyhow::bail!("empty output for zpool status")
+        }
+        Ok(output)
     }
 
     fn run_command(program: &str, args: &[&str]) -> anyhow::Result<String> {
-        let command_output = Command::new(program)
+        const TIMEOUT: Duration = Duration::from_secs(15);
+
+        let mut subcommand = Command::new(program)
             .args(args)
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .with_context(|| format!("command {program:?} args {args:?}"))?;
-        String::from_utf8(command_output.stdout).context("non-utf8 output")
+
+        let start_time = Instant::now();
+
+        let mut wait = 1;
+        loop {
+            if start_time.elapsed() >= TIMEOUT {
+                subcommand.kill()?;
+                anyhow::bail!("command timed out: {program:?} args {args:?}");
+            }
+            if subcommand.try_wait()?.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(wait));
+            wait *= 2;
+        }
+
+        let Output {
+            status: _,
+            stdout,
+            stderr,
+        } = subcommand.wait_with_output()?;
+        let output = if stdout.is_empty() { stderr } else { stdout };
+
+        String::from_utf8(output).context("non-utf8 output")
     }
 }

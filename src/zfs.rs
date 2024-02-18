@@ -157,6 +157,13 @@ impl TimeContext {
                     } else if line.trim().is_empty() {
                         // ignore empty line
                         Ok(())
+                    } else if line == "no pools available" {
+                        // ignore marker for "no output"
+                        Ok(())
+                    } else if line.starts_with("/dev/zfs and /proc/self/mounts") {
+                        Err(anyhow::anyhow!(
+                            "zpool requires access to /dev/zfs and /proc/self/mounts"
+                        ))
                     } else {
                         Err(anyhow::anyhow!("unknown line in header"))
                     }
