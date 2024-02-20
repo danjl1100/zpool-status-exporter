@@ -13,7 +13,6 @@
       # CapabilityBoundingSet = [""];
       DeviceAllow = [
         "/dev/zfs"
-        "/proc/self/mounts"
       ];
       # LockPersonality = true;
       # # PrivateDevices = true; # blocks all `DeviceAllow` devices
