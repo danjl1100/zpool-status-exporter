@@ -60,6 +60,7 @@ value_enum! {
     }
 }
 
+use self::context::WriteKeyValue as _;
 use crate::zfs::{
     DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, PoolStatusDescription, ScanStatus,
 };
@@ -88,7 +89,61 @@ pub fn format_metrics(
     }
     .to_string()
 }
-const PREFIX: &str = "zpool_status_export";
+
+mod context {
+    pub trait WriteKeyValue {
+        fn write_kv(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            key: &'static str,
+            value: f64,
+        ) -> std::fmt::Result {
+            const PREFIX: &str = "zpool_status_export";
+            write!(f, "{PREFIX}_{key}")?;
+
+            self.fmt_context(f)?;
+
+            // detect integers to print normally
+            let precision = if value.fract().abs() < f64::EPSILON {
+                // integer
+                0
+            } else {
+                // float
+                6
+            };
+            writeln!(f, " {value:.precision$}")
+        }
+        fn fmt_context(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    }
+    pub struct Empty;
+    impl WriteKeyValue for Empty {
+        fn fmt_context(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Ok(())
+        }
+    }
+    pub struct Pool<'a> {
+        pub pool_name: &'a str,
+    }
+    impl WriteKeyValue for Pool<'_> {
+        fn fmt_context(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { pool_name } = self;
+            write!(f, "{{pool={pool_name:?}}}")
+        }
+    }
+    pub struct Device<'a> {
+        pub pool_name: &'a str,
+        pub dev_name: &'a super::DeviceTreeName,
+    }
+    impl WriteKeyValue for Device<'_> {
+        fn fmt_context(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self {
+                pool_name,
+                dev_name,
+            } = self;
+            write!(f, "{{pool={pool_name:?},dev={dev_name:?}}}")
+        }
+    }
+}
 
 impl std::fmt::Display for FormatPoolMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -101,9 +156,9 @@ impl std::fmt::Display for FormatPoolMetrics {
         }
 
         if let Some(start_time) = self.compute_time_start {
-            writeln!(f, "# total duration of the lookup in microseconds")?;
-            let lookup_duration_micros = start_time.elapsed().as_micros();
-            writeln!(f, "{PREFIX}_lookup={lookup_duration_micros}")?;
+            writeln!(f, "# total duration of the lookup in seconds")?;
+            let lookup_duration = start_time.elapsed().as_secs_f64();
+            context::Empty.write_kv(f, "lookup", lookup_duration)?;
         }
         Ok(())
     }
@@ -157,7 +212,7 @@ impl FormatPoolMetrics {
             };
             for pool in &self.pools {
                 let PoolMetrics {
-                    name,
+                    name: pool_name,
                     state,
                     pool_status,
                     scan_status,
@@ -178,15 +233,7 @@ impl FormatPoolMetrics {
                     }
                     S::ErrorState => ErrorStatusValue::from_opt(error).into(),
                 };
-                // detect integers to print normally
-                let precision = if value.fract().abs() < f64::EPSILON {
-                    // integer
-                    0
-                } else {
-                    // float
-                    6
-                };
-                writeln!(f, "{PREFIX}_{metric}{{pool={name:?}}}={value:.precision$}")?;
+                context::Pool { pool_name }.write_kv(f, metric, value)?;
             }
         }
         Ok(())
@@ -248,10 +295,11 @@ impl FormatPoolMetrics {
                         S::ErrorsWrite => errors_write,
                         S::ErrorsChecksum => errors_checksum,
                     };
-                    writeln!(
-                        f,
-                        "{PREFIX}_{metric}{{pool={pool_name:?},dev={dev_name:?}}}={value}"
-                    )?;
+                    context::Device {
+                        pool_name,
+                        dev_name: &dev_name,
+                    }
+                    .write_kv(f, metric, value.into())?;
                 }
             }
         }
