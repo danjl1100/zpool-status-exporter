@@ -3,6 +3,8 @@
 #[macro_use]
 mod macros;
 
+mod meta;
+
 // Define output values
 //
 // Keep the values stable, for continuity in prometheus history
@@ -61,8 +63,11 @@ value_enum! {
 }
 
 use self::context::WriteKeyValue as _;
-use crate::zfs::{
-    DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, PoolStatusDescription, ScanStatus,
+use crate::{
+    fmt::meta::MetricWrite as _,
+    zfs::{
+        DeviceMetrics, DeviceStatus, ErrorStatus, PoolMetrics, PoolStatusDescription, ScanStatus,
+    },
 };
 use std::time::Instant;
 
@@ -91,15 +96,23 @@ pub fn format_metrics(
 }
 
 mod context {
+    pub fn write_prefix_label<T: super::meta::MetricWrite + ?Sized>(
+        key: &T,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        const PREFIX: &str = "zpool";
+        let key = key.metric_name();
+        write!(f, "{PREFIX}_{key}")
+    }
+
     pub trait WriteKeyValue {
-        fn write_kv(
+        fn write_kv<T: super::meta::MetricWrite + ?Sized>(
             &self,
             f: &mut std::fmt::Formatter<'_>,
-            key: &'static str,
+            key: &T,
             value: f64,
         ) -> std::fmt::Result {
-            const PREFIX: &str = "zpool_status_export";
-            write!(f, "{PREFIX}_{key}")?;
+            write_prefix_label(key, f)?;
 
             self.fmt_context(f)?;
 
@@ -156,9 +169,11 @@ impl std::fmt::Display for FormatPoolMetrics {
         }
 
         if let Some(start_time) = self.compute_time_start {
-            writeln!(f, "# total duration of the lookup in seconds")?;
+            const LOOKUP: meta::SimpleMetric =
+                meta::metric("lookup", "total duration of the lookup in seconds");
+            LOOKUP.write_meta(f)?;
             let lookup_duration = start_time.elapsed().as_secs_f64();
-            context::Empty.write_kv(f, "lookup", lookup_duration)?;
+            context::Empty.write_kv(f, &LOOKUP, lookup_duration)?;
         }
         Ok(())
     }
@@ -176,40 +191,30 @@ enum_all! {
 }
 impl FormatPoolMetrics {
     fn fmt_pool_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const POOL_STATE: meta::ValuesMetric<DeviceStatusValue> =
+            meta::metric("pool_state", "Pool state").with_values();
+        const POOL_STATUS_DESCRIPTION: meta::ValuesMetric<PoolStatusDescriptionValue> =
+            meta::metric("pool_status_desc", "Pool status description").with_values();
+        const SCAN_STATE: meta::ValuesMetric<ScanStatusValue> = //
+            meta::metric("scan_state", "Scan status").with_values();
+        const SCAN_AGE: meta::SimpleMetric = //
+            meta::metric("scan_age", "Scan age in hours");
+        const ERROR_STATE: meta::ValuesMetric<ErrorStatusValue> =
+            meta::metric("error_state", "Error status").with_values();
+
         const SECONDS_PER_HOUR: f64 = 60.0 * 60.0;
 
         use PoolSections as S;
         for section in S::ALL {
-            let metric = match section {
-                S::PoolState => {
-                    writeln!(f, "# Pool state: {}", DeviceStatusValue::summarize_values())?;
-                    "pool_state"
-                }
-                S::PoolStatusDescription => {
-                    writeln!(
-                        f,
-                        "# Pool status description: {}",
-                        PoolStatusDescriptionValue::summarize_values()
-                    )?;
-                    "pool_status_desc"
-                }
-                S::ScanState => {
-                    writeln!(f, "# Scan status: {}", ScanStatusValue::summarize_values())?;
-                    "scan_state"
-                }
-                S::ScanAge => {
-                    writeln!(f, "# Scan age in hours")?;
-                    "scan_age"
-                }
-                S::ErrorState => {
-                    writeln!(
-                        f,
-                        "# Error status: {}",
-                        ErrorStatusValue::summarize_values()
-                    )?;
-                    "error_state"
-                }
+            let metric: &dyn meta::MetricWrite = match section {
+                S::PoolState => &POOL_STATE,
+                S::PoolStatusDescription => &POOL_STATUS_DESCRIPTION,
+                S::ScanState => &SCAN_STATE,
+                S::ScanAge => &SCAN_AGE,
+                S::ErrorState => &ERROR_STATE,
             };
+            metric.write_meta(f)?;
+
             for pool in &self.pools {
                 let PoolMetrics {
                     name: pool_name,
@@ -251,30 +256,25 @@ enum_all! {
 }
 impl FormatPoolMetrics {
     fn fmt_device_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const DEVICE_STATE: meta::ValuesMetric<DeviceStatusValue> =
+            meta::metric("dev_state", "Device state").with_values();
+        const ERRORS_READ: meta::SimpleMetric = //
+            meta::metric("dev_errors_read", "Read error count");
+        const ERRORS_WRITE: meta::SimpleMetric = //
+            meta::metric("dev_errors_write", "Write error count");
+        const ERRORS_CHECKSUM: meta::SimpleMetric = //
+            meta::metric("dev_errors_checksum", "Checksum error count");
+
         use DeviceSections as S;
         for section in S::ALL {
-            let metric = match section {
-                S::State => {
-                    writeln!(
-                        f,
-                        "# Device state: {}",
-                        DeviceStatusValue::summarize_values()
-                    )?;
-                    "dev_state"
-                }
-                S::ErrorsRead => {
-                    writeln!(f, "# Read error count")?;
-                    "dev_errors_read"
-                }
-                S::ErrorsWrite => {
-                    writeln!(f, "# Write error count")?;
-                    "dev_errors_write"
-                }
-                S::ErrorsChecksum => {
-                    writeln!(f, "# Checksum error count")?;
-                    "dev_errors_checksum"
-                }
+            let metric: &dyn meta::MetricWrite = match section {
+                S::State => &DEVICE_STATE,
+                S::ErrorsRead => &ERRORS_READ,
+                S::ErrorsWrite => &ERRORS_WRITE,
+                S::ErrorsChecksum => &ERRORS_CHECKSUM,
             };
+            metric.write_meta(f)?;
+
             for pool in &self.pools {
                 let pool_name = &pool.name;
 

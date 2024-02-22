@@ -38,22 +38,20 @@ fn stderr_no_pools() -> anyhow::Result<()> {
         assert_eq!(response_metrics_status, HTTP_OK);
 
         let mut lines = response_metrics.lines();
-        let line = lines.next().expect("has line 1");
+        let lines_first: Vec<_> = lines.by_ref().take(3).collect();
         assert_eq!(
-            line,
-            "# no pools reported", //
-            "line 1 {line:?}",
+            lines_first,
+            vec![
+                "# no pools reported",
+                "# HELP zpool_lookup total duration of the lookup in seconds",
+                "# TYPE zpool_lookup GAUGE",
+            ],
+            "first lines"
         );
-        let line = lines.next().expect("has line 2");
-        assert!(
-            line.starts_with("# total duration of the lookup"),
-            "line 2 {line:?}",
-        );
-        let line = lines.next().expect("has line 3");
-        assert!(
-            line.starts_with("zpool_status_export_lookup"),
-            "line 3 {line:?}"
-        );
+
+        let line = lines.next().expect("has line 4");
+        assert!(line.starts_with("zpool_lookup"), "line 4 {line:?}");
+
         assert_eq!(lines.next(), None, "no extra lines");
     }
 

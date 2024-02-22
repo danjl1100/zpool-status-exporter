@@ -1,56 +1,66 @@
-# Pool state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
-zpool_status_export_pool_state{pool="alpha-centauri"} 10
-# Pool status description: Normal = 0, Unrecognized = 1, FeaturesAvailable = 5, SufficientReplicasForMissing = 10, DataCorruption = 50
-zpool_status_export_pool_status_desc{pool="alpha-centauri"} 0
-# Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30
-zpool_status_export_scan_state{pool="alpha-centauri"} 10
-# Scan age in hours
-zpool_status_export_scan_age{pool="alpha-centauri"} <IGNORE>
-# Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
-zpool_status_export_error_state{pool="alpha-centauri"} 10
-# Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
-zpool_status_export_dev_state{pool="alpha-centauri",dev=""} 10
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-0"} 1
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 10
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 25
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-1"} 26
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 50
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 60
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-2"} 70
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 80
-zpool_status_export_dev_state{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 100
-# Read error count
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev=""} 0
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-0"} 1
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 2
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 3
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-1"} 4
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 5
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 6
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-2"} 7
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 8
-zpool_status_export_dev_errors_read{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 9
-# Write error count
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev=""} 10
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-0"} 11
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 12
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 13
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-1"} 14
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 15
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 16
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-2"} 17
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 18
-zpool_status_export_dev_errors_write{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 19
-# Checksum error count
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev=""} 20
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0"} 21
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 22
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 23
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1"} 24
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 25
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 26
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2"} 27
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 28
-zpool_status_export_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 29
-# total duration of the lookup in seconds
-zpool_status_export_lookup <IGNORE>
+# HELP zpool_pool_state Pool state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# TYPE zpool_pool_state GAUGE
+zpool_pool_state{pool="alpha-centauri"} 10
+# HELP zpool_pool_status_desc Pool status description: Normal = 0, Unrecognized = 1, FeaturesAvailable = 5, SufficientReplicasForMissing = 10, DataCorruption = 50
+# TYPE zpool_pool_status_desc GAUGE
+zpool_pool_status_desc{pool="alpha-centauri"} 0
+# HELP zpool_scan_state Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30
+# TYPE zpool_scan_state GAUGE
+zpool_scan_state{pool="alpha-centauri"} 10
+# HELP zpool_scan_age Scan age in hours
+# TYPE zpool_scan_age GAUGE
+zpool_scan_age{pool="alpha-centauri"} <IGNORE>
+# HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
+# TYPE zpool_error_state GAUGE
+zpool_error_state{pool="alpha-centauri"} 10
+# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# TYPE zpool_dev_state GAUGE
+zpool_dev_state{pool="alpha-centauri",dev=""} 10
+zpool_dev_state{pool="alpha-centauri",dev="mirror-0"} 1
+zpool_dev_state{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 10
+zpool_dev_state{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 25
+zpool_dev_state{pool="alpha-centauri",dev="mirror-1"} 26
+zpool_dev_state{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 50
+zpool_dev_state{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 60
+zpool_dev_state{pool="alpha-centauri",dev="mirror-2"} 70
+zpool_dev_state{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 80
+zpool_dev_state{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 100
+# HELP zpool_dev_errors_read Read error count
+# TYPE zpool_dev_errors_read GAUGE
+zpool_dev_errors_read{pool="alpha-centauri",dev=""} 0
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0"} 1
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 2
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 3
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-1"} 4
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 5
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 6
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2"} 7
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 8
+zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 9
+# HELP zpool_dev_errors_write Write error count
+# TYPE zpool_dev_errors_write GAUGE
+zpool_dev_errors_write{pool="alpha-centauri",dev=""} 10
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0"} 11
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 12
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 13
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-1"} 14
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 15
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 16
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2"} 17
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 18
+zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 19
+# HELP zpool_dev_errors_checksum Checksum error count
+# TYPE zpool_dev_errors_checksum GAUGE
+zpool_dev_errors_checksum{pool="alpha-centauri",dev=""} 20
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0"} 21
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 22
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 23
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1"} 24
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1/wwn-0x3333333333333333-part2"} 25
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-1/ata-4444444444444444444444444444-part1"} 26
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2"} 27
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 28
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 29
+# HELP zpool_lookup total duration of the lookup in seconds
+# TYPE zpool_lookup GAUGE
+zpool_lookup <IGNORE>

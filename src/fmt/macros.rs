@@ -28,6 +28,11 @@ macro_rules! enum_all {
     };
 }
 
+pub trait SummarizeValues {
+    /// Writes a comma-separated representation of all variants: "Variant = value"
+    fn summarize_values(f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+}
+
 /// Defines the enum with:
 /// - `fn summarize_values()` to list the name/value pairs, and
 /// - `fn value()` to retrieve the value
@@ -58,26 +63,20 @@ macro_rules! value_enum {
                     ),+
                 }
             }
-            impl $name {
-                /// Returns a comma-separated representation of all variants: "Variant = value"
-                #[allow(clippy::must_use_candidate)]
-                pub fn summarize_values() -> impl std::fmt::Display {
-                    struct Summary;
-                    impl std::fmt::Display for Summary {
-                        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                            let mut first = Some(());
-                            for &status in $name::ALL {
-                                if first.take().is_none() {
-                                    write!(f, ", ")?;
-                                }
-                                let status_num = status.value();
-                                write!(f, "{status:?} = {status_num}")?;
-                            }
-                            Ok(())
+            impl $crate::fmt::macros::SummarizeValues for $name {
+                fn summarize_values(f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    let mut first = Some(());
+                    for &status in $name::ALL {
+                        if first.take().is_none() {
+                            write!(f, ", ")?;
                         }
+                        let status_num = status.value();
+                        write!(f, "{status:?} = {status_num}")?;
                     }
-                    Summary
+                    Ok(())
                 }
+            }
+            impl $name {
                 /// Returns the value from the specified `Option`
                 pub fn from_opt<T>(source: &Option<T>) -> u32
                 where
