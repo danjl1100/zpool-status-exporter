@@ -162,6 +162,7 @@ pub struct Timestamp<'a> {
 impl<'a> Timestamp<'a> {
     fn handle_request(self, request: tiny_http::Request) {
         const ENDPOINT_METRICS: &str = "/metrics";
+        const ENDPOINT_ROOT: &str = "/";
         const HTML_NOT_FOUND: u32 = 404;
 
         let result = {
@@ -169,6 +170,9 @@ impl<'a> Timestamp<'a> {
             if url == ENDPOINT_METRICS {
                 let response = self.get_metrics_response();
                 request.respond(response).context("metrics response")
+            } else if url == ENDPOINT_ROOT {
+                let response = Self::get_root_response();
+                request.respond(response).context("root response")
             } else {
                 let response = tiny_http::Response::empty(HTML_NOT_FOUND);
                 request.respond(response).context("not-found response")
@@ -177,6 +181,13 @@ impl<'a> Timestamp<'a> {
         if let Err(err) = result {
             eprintln!("failed to send response: {err:#}");
         }
+    }
+    fn get_root_response() -> tiny_http::Response<impl std::io::Read> {
+        const ROOT_HTML: &str = include_str!("root.html");
+        tiny_http::Response::from_string(ROOT_HTML).with_header(
+            tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..])
+                .expect("valid header"),
+        )
     }
     // Infallible, returns commented error response on failure
     fn get_metrics_response(&self) -> tiny_http::Response<impl std::io::Read> {

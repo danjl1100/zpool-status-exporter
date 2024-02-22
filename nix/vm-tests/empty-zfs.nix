@@ -19,5 +19,7 @@ in
       machine.wait_for_unit("default.target")
       machine.succeed("curl http://${listen_address}/metrics")
       machine.succeed("curl http://${listen_address}/metrics | grep '# no pools reported'")
+      machine.succeed("curl http://${listen_address}/")
+      machine.succeed("curl http://${listen_address}/ | grep 'zpool-status-exporter'")
     '';
   }

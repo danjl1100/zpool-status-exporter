@@ -8,6 +8,7 @@ use std::{net::SocketAddr, str::FromStr};
 
 struct Responses {
     response_metrics: MiniReqResult,
+    response_root: MiniReqResult,
     response_unknown: MiniReqResult,
 }
 
@@ -25,11 +26,15 @@ fn run_bin() -> anyhow::Result<()> {
             // request from `/metrics` endpoint
             let response_metrics = minreq::get(format!("http://{listen_address}/metrics")).send();
 
+            // request root `/`
+            let response_root = minreq::get(format!("http://{listen_address}/")).send();
+
             // request non-existent URL
-            let response_unknown = minreq::get(format!("http://{listen_address}/")).send();
+            let response_unknown = minreq::get(format!("http://{listen_address}/unknown")).send();
 
             Responses {
                 response_metrics,
+                response_root,
                 response_unknown,
             }
         })?;
@@ -69,6 +74,7 @@ fn run_bin() -> anyhow::Result<()> {
     {
         let Responses {
             response_metrics,
+            response_root,
             response_unknown,
         } = responses;
 
@@ -76,9 +82,19 @@ fn run_bin() -> anyhow::Result<()> {
         let response_metrics_status = response_metrics.status_code;
         let response_metrics = response_metrics.as_str()?;
 
+        let response_root = response_root?;
+        let response_root_status = response_root.status_code;
+        let response_root = response_root.as_str()?;
+
         let response_unknown = response_unknown?;
         let response_unknown_status = response_unknown.status_code;
         let response_unknown = response_unknown.as_str()?;
+
+        assert!(
+            response_root.contains("zpool-status-exporter"),
+            "root {response_root:?}"
+        );
+        assert_eq!(response_root_status, HTTP_OK);
 
         assert_eq!(response_unknown, "", "response_unknown");
         assert_eq!(response_unknown_status, HTTP_NOT_FOUND);
