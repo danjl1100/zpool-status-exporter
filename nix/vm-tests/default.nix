@@ -5,6 +5,7 @@
 }: let
   test_sources = {
     empty-zfs = ./empty-zfs.nix;
+    empty-zfs-auth = ./empty-zfs-auth.nix;
   };
   tests = builtins.mapAttrs (_name: test_source:
     callPackage test_source {

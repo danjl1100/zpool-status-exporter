@@ -68,6 +68,13 @@
           Group to run the zpool-status-exporter service
         '';
       };
+      basic_auth_keys_file = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        description = ''
+          Path to the file containing lines `user:pass` specifying allowed Basic authentication credentials
+        '';
+        default = null;
+      };
     };
     config = lib.mkIf cfg.enable {
       nixpkgs.overlays = [
@@ -120,6 +127,7 @@
         path = [config.boot.zfs.package];
         environment = {
           LISTEN_ADDRESS = cfg.listen_address;
+          BASIC_AUTH_KEYS_FILE = cfg.basic_auth_keys_file;
         };
       };
       assertions = [
