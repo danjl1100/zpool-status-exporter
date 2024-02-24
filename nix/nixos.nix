@@ -9,29 +9,29 @@
     cfg = config.services.${name};
 
     hardening = {
-      # # Hardening
-      # CapabilityBoundingSet = [""];
+      # Hardening
+      CapabilityBoundingSet = [""];
       DeviceAllow = [
         "/dev/zfs"
       ];
-      # LockPersonality = true;
-      # # PrivateDevices = true; # blocks all `DeviceAllow` devices
-      # PrivateUsers = true;
-      # ProcSubset = "pid";
-      # ProtectClock = true;
-      # ProtectControlGroups = true;
-      # ProtectHome = true;
-      # ProtectHostname = true;
-      # ProtectKernelLogs = true;
-      # # ProtectKernelModules = true;
-      # ProtectKernelTunables = true;
-      # ProtectProc = "invisible";
-      # RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
-      # RestrictNamespaces = true;
-      # RestrictRealtime = true;
-      # SystemCallArchitectures = "native";
-      # SystemCallFilter = ["@system-service" "~@privileged" "~@resources"];
-      # UMask = "0077";
+      LockPersonality = true;
+      # PrivateDevices = true; # blocks all `DeviceAllow` devices
+      PrivateUsers = true;
+      ProcSubset = "pid";
+      ProtectClock = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectHostname = true;
+      ProtectKernelLogs = true;
+      ProtectKernelModules = true; # empirically not needed for ZFS kernel module access via zpool
+      ProtectKernelTunables = true;
+      ProtectProc = "invisible";
+      RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
+      RestrictNamespaces = true;
+      RestrictRealtime = true;
+      SystemCallArchitectures = "native";
+      SystemCallFilter = ["@system-service" "~@privileged" "~@resources"];
+      UMask = "0077";
     };
   in {
     options.services.${name} = {
