@@ -1,8 +1,8 @@
 use super::MiniReqResult;
 use crate::{
-    assert_matches_template,
+    assert_matches_template, assert_response,
     common::bin_cmd::{BinCommand, BinOutput},
-    HTTP_NOT_FOUND, HTTP_OK,
+    HTTP_NOT_FOUND, HTTP_NOT_FOUND_STRING, HTTP_OK,
 };
 use std::{net::SocketAddr, str::FromStr};
 
@@ -78,29 +78,19 @@ fn run_bin() -> anyhow::Result<()> {
             response_unknown,
         } = responses;
 
-        let response_metrics = response_metrics?;
-        let response_metrics_status = response_metrics.status_code;
-        let response_metrics = response_metrics.as_str()?;
+        assert_response("root", response_root?, HTTP_OK, |content| {
+            content.contains("zpool-status-exporter")
+        });
 
-        let response_root = response_root?;
-        let response_root_status = response_root.status_code;
-        let response_root = response_root.as_str()?;
+        assert_response("unknown", response_unknown?, HTTP_NOT_FOUND, |content| {
+            assert_eq!(content, HTTP_NOT_FOUND_STRING, "unknown");
+            true
+        });
 
-        let response_unknown = response_unknown?;
-        let response_unknown_status = response_unknown.status_code;
-        let response_unknown = response_unknown.as_str()?;
-
-        assert!(
-            response_root.contains("zpool-status-exporter"),
-            "root {response_root:?}"
-        );
-        assert_eq!(response_root_status, HTTP_OK);
-
-        assert_eq!(response_unknown, "", "response_unknown");
-        assert_eq!(response_unknown_status, HTTP_NOT_FOUND);
-
-        assert_matches_template(response_metrics, EXPECTED_METRICS_OUTPUT);
-        assert_eq!(response_metrics_status, HTTP_OK);
+        assert_response("metrics", response_metrics?, HTTP_OK, |content| {
+            assert_matches_template(content, EXPECTED_METRICS_OUTPUT);
+            true
+        });
     }
 
     Ok(())

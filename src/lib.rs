@@ -24,10 +24,12 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+use crate::auth::{AuthResult, AuthRules, DebugUserStringRef};
 use anyhow::Context as _;
 use std::time::{Duration, Instant};
 use time::{util::local_offset, UtcOffset};
 
+pub mod auth;
 pub mod fmt;
 pub mod zfs;
 
@@ -37,6 +39,10 @@ pub struct Args {
     /// Bind address for the server
     #[clap(env)]
     pub listen_address: std::net::SocketAddr,
+    /// Filename containing allowed basic authentication tokens
+    #[clap(env)]
+    #[arg(long)]
+    pub basic_auth_keys_file: Option<std::path::PathBuf>,
 }
 
 /// Signal to cleanly terminate after finishing the current request (if any)
@@ -87,6 +93,7 @@ impl TimeContext {
     /// - binding the server fails
     /// - fail-fast metrics creation fails
     /// - shutdown receive fails (only if a `Receiver` was provided)
+    /// - loading the auth key file fails
     ///
     pub fn serve(
         &self,
@@ -96,7 +103,19 @@ impl TimeContext {
         const RECV_TIMEOUT: Duration = Duration::from_millis(100);
         const RECV_SLEEP: Duration = Duration::from_millis(10);
 
-        let Args { listen_address } = args;
+        let Args {
+            listen_address,
+            basic_auth_keys_file,
+        } = args;
+
+        let auth_rules = basic_auth_keys_file
+            .as_ref()
+            .map(|file| {
+                AuthRules::from_file(file)
+                    .with_context(|| format!("reading basic_auth_keys_file {:?}", file.display()))
+            })
+            .transpose()?;
+
         let server = tiny_http::Server::http(listen_address).map_err(|e| anyhow::anyhow!(e))?;
 
         // ensure fail-fast
@@ -105,10 +124,24 @@ impl TimeContext {
         }
 
         println!("Listening at http://{listen_address:?}");
+        if let Some(auth_rules) = &auth_rules {
+            auth_rules.print_start_message();
+        }
 
         while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
             if let Some(request) = server.recv_timeout(RECV_TIMEOUT)? {
-                self.timestamp_now().handle_request(request);
+                let auth_result = auth_rules
+                    .as_ref()
+                    .map_or(Ok(AuthResult::NoneConfigured), |auth_rules| {
+                        auth_rules.query(&request)
+                    });
+                match auth_result {
+                    Ok(auth_result) => self.timestamp_now().handle_request(request, auth_result),
+                    Err(auth::InvalidHeaderError(err)) => {
+                        dbg!(err);
+                        respond_code(request, HTTP_BAD_REQUEST, None)?;
+                    }
+                }
             } else {
                 std::thread::sleep(RECV_SLEEP);
             }
@@ -151,6 +184,27 @@ impl TimeContext {
         }
     }
 }
+
+const HTTP_BAD_REQUEST: (u32, &str) = (400, "Bad Request");
+const HTTP_UNAUTHORIZED: (u32, &str) = (401, "Unauthorized");
+const HTTP_FORBIDDEN: (u32, &str) = (403, "Forbidden");
+const HTTP_NOT_FOUND: (u32, &str) = (404, "Not Found");
+fn respond_code(
+    request: tiny_http::Request,
+    (code, label): (u32, &str),
+    header: Option<tiny_http::Header>,
+) -> anyhow::Result<()> {
+    let mut response = tiny_http::Response::from_string(label).with_status_code(code);
+
+    if let Some(header) = header {
+        response = response.with_header(header);
+    }
+
+    request
+        .respond(response)
+        .with_context(|| format!("{code} response"))
+}
+
 /// Start time for parsing timestamps and formatting time-based metrics
 #[must_use]
 pub struct Timestamp<'a> {
@@ -160,29 +214,43 @@ pub struct Timestamp<'a> {
     compute_time_start: Option<Instant>,
 }
 impl<'a> Timestamp<'a> {
-    fn handle_request(self, request: tiny_http::Request) {
+    fn handle_request(self, request: tiny_http::Request, auth: AuthResult) {
         const ENDPOINT_METRICS: &str = "/metrics";
         const ENDPOINT_ROOT: &str = "/";
-        const HTML_NOT_FOUND: u32 = 404;
 
-        let result = {
-            let url = request.url();
-            if url == ENDPOINT_METRICS {
-                let response = self.get_metrics_response();
-                request.respond(response).context("metrics response")
-            } else if url == ENDPOINT_ROOT {
-                let response = Self::get_root_response();
-                request.respond(response).context("root response")
-            } else {
-                let response = tiny_http::Response::empty(HTML_NOT_FOUND);
-                request.respond(response).context("not-found response")
+        let url = request.url();
+        let result = if url == ENDPOINT_ROOT {
+            let response = Self::get_public_root_response();
+            request.respond(response).context("root response")
+        } else {
+            match auth {
+                AuthResult::MissingAuthHeader => respond_code(
+                    request,
+                    HTTP_UNAUTHORIZED,
+                    Some(auth::get_header_www_authenticate()),
+                ),
+                AuthResult::Deny(who) => {
+                    println!(
+                        "denied access for {who} to url {url}",
+                        url = DebugUserStringRef::from(url)
+                    );
+                    respond_code(request, HTTP_FORBIDDEN, None)
+                }
+                AuthResult::Accept | AuthResult::NoneConfigured => {
+                    if url == ENDPOINT_METRICS {
+                        let response = self.get_metrics_response();
+                        request.respond(response).context("metrics response")
+                    } else {
+                        respond_code(request, HTTP_NOT_FOUND, None)
+                    }
+                }
             }
         };
         if let Err(err) = result {
             eprintln!("failed to send response: {err:#}");
         }
     }
-    fn get_root_response() -> tiny_http::Response<impl std::io::Read> {
+    fn get_public_root_response() -> tiny_http::Response<impl std::io::Read> {
         const ROOT_HTML: &str = include_str!("root.html");
         tiny_http::Response::from_string(ROOT_HTML).with_header(
             tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..])

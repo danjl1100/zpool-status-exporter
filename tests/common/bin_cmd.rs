@@ -18,7 +18,7 @@ pub enum FakeZpoolMode {
 #[derive(Default)]
 pub struct BinCommand {
     mode: Option<FakeZpoolMode>,
-    arg: Option<String>,
+    args: Vec<String>,
 }
 impl BinCommand {
     pub fn new() -> Self {
@@ -28,8 +28,12 @@ impl BinCommand {
         self.mode = Some(mode);
         self
     }
-    pub fn arg(mut self, arg: &str) -> Self {
-        self.arg = Some(arg.to_string());
+    pub fn arg(mut self, arg: &'static str) -> Self {
+        self.args.push(arg.to_string());
+        self
+    }
+    pub fn arg_dynamic(mut self, arg: String) -> Self {
+        self.args.push(arg);
         self
     }
     fn build(self) -> Command {
@@ -58,8 +62,8 @@ impl BinCommand {
             command.env("FAKE_ZPOOL_MODE", mode_str);
         }
 
-        if let Some(arg) = self.arg {
-            command.arg(arg);
+        if !self.args.is_empty() {
+            command.args(self.args);
         }
 
         command

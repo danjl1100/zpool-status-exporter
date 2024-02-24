@@ -9,7 +9,8 @@
 //! Add as many `#[test]`s as you want! (in submodules of this `single_integration_bin`)
 
 mod common {
-    const LISTEN_ADDRESS_END_TO_END: &str = "127.0.0.1:9583";
+    const LISTEN_ADDRESS_END_TO_END: &str = "127.0.0.1:9582";
+    const LISTEN_ADDRESS_END_TO_END_AUTH: &str = "127.0.0.1:9583";
     const LISTEN_ADDRESS_CHILD_STDERR_1: &str = "127.0.0.1:9584";
     const LISTEN_ADDRESS_CHILD_STDERR_2: &str = "127.0.0.1:9585";
     const LISTEN_ADDRESS_CHILD_SILENT_1: &str = "127.0.0.1:9586";
@@ -20,13 +21,21 @@ mod common {
     mod child_silent;
     mod child_stderr;
     mod end_to_end;
+    mod end_to_end_auth;
 
     mod sans_io_cases;
 
     mod bin_cmd;
 }
-const HTTP_NOT_FOUND: i32 = 404;
 const HTTP_OK: i32 = 200;
+const HTTP_UNAUTHORIZED: i32 = 401;
+const HTTP_FORBIDDEN: i32 = 403;
+const HTTP_NOT_FOUND: i32 = 404;
+
+// no HTTP_OK_STRING, as it varies by the actual response content
+const HTTP_UNAUTHORIZED_STRING: &str = "Unauthorized";
+const HTTP_FORBIDDEN_STRING: &str = "Forbidden";
+const HTTP_NOT_FOUND_STRING: &str = "Not Found";
 
 /// line-by-line comparison, to filter out timestamp-sensitive items
 fn assert_matches_template(response: &str, expected: &str) {
@@ -82,4 +91,19 @@ fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {
     } else {
         assert_eq!(response, expected, "response_metrics line");
     }
+}
+
+fn assert_response(
+    label: &'static str,
+    response: minreq::Response,
+    code: i32,
+    check_fn: impl FnOnce(&str) -> bool,
+) {
+    let Ok(content) = response.as_str() else {
+        panic!("expected UTF-8 response string for {label}");
+    };
+
+    assert_eq!(response.status_code, code, "{label} code");
+
+    assert!(check_fn(content), "{label} check");
 }
