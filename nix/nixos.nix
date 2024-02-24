@@ -16,14 +16,14 @@
       ];
       LockPersonality = true;
       # PrivateDevices = true; # blocks all `DeviceAllow` devices
-      PrivateUsers = true;
+      # PrivateUsers = true; # blocks some capability needed for zpool to locate pools
       ProcSubset = "pid";
       ProtectClock = true;
       ProtectControlGroups = true;
       ProtectHome = true;
       ProtectHostname = true;
       ProtectKernelLogs = true;
-      ProtectKernelModules = true; # empirically not needed for ZFS kernel module access via zpool
+      # ProtectKernelModules = true; # need ZFS kernel module access for zpool command
       ProtectKernelTunables = true;
       ProtectProc = "invisible";
       RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
