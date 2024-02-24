@@ -44,7 +44,7 @@ fn stderr_no_pools() -> anyhow::Result<()> {
             vec![
                 "# no pools reported",
                 "# HELP zpool_lookup total duration of the lookup in seconds",
-                "# TYPE zpool_lookup GAUGE",
+                "# TYPE zpool_lookup gauge",
             ],
             "first lines"
         );
