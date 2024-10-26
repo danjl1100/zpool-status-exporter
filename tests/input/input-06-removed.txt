@@ -1,0 +1,18 @@
+TEST_TIMESTAMP=1729966900
+  pool: dummy
+ state: DEGRADED
+status: One or more devices has been removed by the administrator.
+	Sufficient replicas exist for the pool to continue functioning in a
+	degraded state.
+action: Online the device using zpool online' or replace the device with
+	'zpool replace'.
+  scan: scrub repaired 0B in 10:42:32 with 0 errors on Sun Oct 20 17:29:34 2024
+config:
+
+	NAME              STATE     READ WRITE CKSUM
+	dummy             DEGRADED     0     0     0
+	  mirror-0        DEGRADED     0     0     0
+	    drive0-part1  REMOVED      0     0     0
+	    drive1-part1  ONLINE       0     0     0
+
+errors: No known data errors

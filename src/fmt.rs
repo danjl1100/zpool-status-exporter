@@ -34,6 +34,7 @@ value_enum! {
         // normal
         FeaturesAvailable => 5,
         SufficientReplicasForMissing => 10,
+        DeviceRemoved => 15,
         // errors
         DataCorruption => 50,
     }

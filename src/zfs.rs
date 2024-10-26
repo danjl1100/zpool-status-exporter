@@ -50,6 +50,7 @@ pub enum PoolStatusDescription {
     // healthy
     FeaturesAvailable,
     SufficientReplicasForMissing,
+    DeviceRemoved,
     // errors
     DataCorruption,
 }
@@ -429,12 +430,21 @@ impl From<&str> for PoolStatusDescription {
             "\n",
             "The pool can still be used, but some features are unavailable.",
         );
+        const DEVICE_REMOVED: &str = concat!(
+            "One or more devices has been removed by the administrator.",
+            "\n",
+            "Sufficient replicas exist for the pool to continue functioning in a",
+            "\n",
+            "degraded state.",
+        );
         if pool_status.starts_with(SUFFICIENT_REPLICAS) {
             Self::SufficientReplicasForMissing
         } else if pool_status.starts_with(DATA_CORRUPTION) {
             Self::DataCorruption
         } else if pool_status.starts_with(FEATURES_AVAILABLE) {
             Self::FeaturesAvailable
+        } else if pool_status.starts_with(DEVICE_REMOVED) {
+            Self::DeviceRemoved
         } else {
             eprintln!("Unrecognized PoolStatusDescription: {pool_status:?}");
             Self::Unrecognized

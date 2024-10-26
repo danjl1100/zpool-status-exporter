@@ -63,4 +63,5 @@ test_cases! {
     case03 {03-resilvered}
     case04 {04-scrub-progress}
     case05 {05-features}
+    case06 {06-removed}
 }
