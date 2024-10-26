@@ -89,6 +89,7 @@
               pkgs.alejandra
               pkgs.bacon
               pkgs.cargo-expand
+              pkgs.cargo-outdated
             ];
           };
         };
