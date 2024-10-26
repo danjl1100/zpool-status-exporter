@@ -111,10 +111,10 @@ impl TimeContext {
     /// # Notes
     ///
     /// - Any unknown string within the format will be accepted and represented as `Unrecognized`
-    /// (e.g. unknown error message, unknown scan status)
+    ///     (e.g. unknown error message, unknown scan status)
     ///
     /// - Any missing line within the format will result in `None` in the returned struct
-    /// (e.g. no "errors: ..." line or no "scan: ..." line)
+    ///     (e.g. no "errors: ..." line or no "scan: ..." line)
     ///
     pub fn parse_zfs_metrics(&self, zpool_output: &str) -> anyhow::Result<Vec<PoolMetrics>> {
         let mut pools = vec![];

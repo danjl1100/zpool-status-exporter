@@ -213,7 +213,7 @@ pub struct Timestamp<'a> {
     /// If present, start time for timing the computation
     compute_time_start: Option<Instant>,
 }
-impl<'a> Timestamp<'a> {
+impl Timestamp<'_> {
     fn handle_request(self, request: tiny_http::Request, auth: AuthResult) {
         const ENDPOINT_METRICS: &str = "/metrics";
         const ENDPOINT_ROOT: &str = "/";

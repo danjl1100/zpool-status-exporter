@@ -37,12 +37,12 @@ fn child_sleep_forever() -> anyhow::Result<()> {
 
     let start_time = Instant::now();
     while start_time.elapsed() < Duration::from_secs(30) {
-        if child.is_finished().unwrap() {
+        if child.is_finished()? {
             break;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
-    assert!(child.is_finished().unwrap(), "child should timeout on time");
+    assert!(child.is_finished()?, "child should timeout on time");
 
     let output = child.kill_await_output()?;
 

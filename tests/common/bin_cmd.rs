@@ -98,7 +98,7 @@ impl BinChild {
     pub fn interrupt_wait(&mut self) -> anyhow::Result<()> {
         // SIGINT - request clean exit
         signal::kill(
-            Pid::from_raw(self.subcommand.id().try_into().unwrap()),
+            Pid::from_raw(self.subcommand.id().try_into()?),
             Signal::SIGINT,
         )?;
 

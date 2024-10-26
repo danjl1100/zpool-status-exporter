@@ -7,9 +7,9 @@ use crate::{
 use std::{net::SocketAddr, str::FromStr};
 
 struct Responses {
-    response_metrics: MiniReqResult,
-    response_root: MiniReqResult,
-    response_unknown: MiniReqResult,
+    metrics: MiniReqResult,
+    root: MiniReqResult,
+    unknown: MiniReqResult,
 }
 
 #[test]
@@ -24,18 +24,18 @@ fn run_bin() -> anyhow::Result<()> {
         .arg(LISTEN_ADDRESS)
         .spawn_cleanup_with(|| {
             // request from `/metrics` endpoint
-            let response_metrics = minreq::get(format!("http://{listen_address}/metrics")).send();
+            let metrics = minreq::get(format!("http://{listen_address}/metrics")).send();
 
             // request root `/`
-            let response_root = minreq::get(format!("http://{listen_address}/")).send();
+            let root = minreq::get(format!("http://{listen_address}/")).send();
 
             // request non-existent URL
-            let response_unknown = minreq::get(format!("http://{listen_address}/unknown")).send();
+            let unknown = minreq::get(format!("http://{listen_address}/unknown")).send();
 
             Responses {
-                response_metrics,
-                response_root,
-                response_unknown,
+                metrics,
+                root,
+                unknown,
             }
         })?;
 
@@ -73,21 +73,21 @@ fn run_bin() -> anyhow::Result<()> {
 
     {
         let Responses {
-            response_metrics,
-            response_root,
-            response_unknown,
+            metrics,
+            root,
+            unknown,
         } = responses;
 
-        assert_response("root", response_root?, HTTP_OK, |content| {
+        assert_response("root", &root?, HTTP_OK, |content| {
             content.contains("zpool-status-exporter")
         });
 
-        assert_response("unknown", response_unknown?, HTTP_NOT_FOUND, |content| {
+        assert_response("unknown", &unknown?, HTTP_NOT_FOUND, |content| {
             assert_eq!(content, HTTP_NOT_FOUND_STRING, "unknown");
             true
         });
 
-        assert_response("metrics", response_metrics?, HTTP_OK, |content| {
+        assert_response("metrics", &metrics?, HTTP_OK, |content| {
             assert_matches_template(content, EXPECTED_METRICS_OUTPUT);
             true
         });

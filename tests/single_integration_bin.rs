@@ -8,6 +8,8 @@
 //!
 //! Add as many `#[test]`s as you want! (in submodules of this `single_integration_bin`)
 
+#![allow(clippy::panic)] // Tests can panic
+
 mod common {
     const LISTEN_ADDRESS_END_TO_END: &str = "127.0.0.1:9582";
     const LISTEN_ADDRESS_END_TO_END_AUTH: &str = "127.0.0.1:9583";
@@ -76,15 +78,14 @@ fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {
             "only allowed one {ignore} per line, at end of line"
         );
 
-        if response.len() < expected.len() {
-            panic!("response too short for expected pattern\n\texpected = {expected:?}\n\tresponse = {response:?}");
-        }
+        assert!(response.len() >= expected.len(), "response too short for expected pattern\n\texpected = {expected:?}\n\tresponse = {response:?}");
         let (response_trimmed, response_remainder) = response.split_at(expected.len());
 
         // SANITY - verify ignored portion is numeric
-        if response_remainder.parse::<f64>().is_err() {
-            panic!("non-numeric ignored remainder {response_remainder:?} of line {response:?}");
-        };
+        assert!(
+            response_remainder.parse::<f64>().is_ok(),
+            "non-numeric ignored remainder {response_remainder:?} of line {response:?}"
+        );
         eprintln!("ignoring remainder {response_remainder:?} of line {response:?}");
 
         assert_eq!(response_trimmed, expected, "response_metrics line trimmed");
@@ -95,7 +96,7 @@ fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {
 
 fn assert_response(
     label: &'static str,
-    response: minreq::Response,
+    response: &minreq::Response,
     code: i32,
     check_fn: impl FnOnce(&str) -> bool,
 ) {
