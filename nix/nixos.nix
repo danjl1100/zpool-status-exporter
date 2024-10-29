@@ -7,32 +7,6 @@
   }: let
     name = "zpool-status-exporter";
     cfg = config.services.${name};
-
-    hardening = {
-      # Hardening
-      CapabilityBoundingSet = [""];
-      DeviceAllow = [
-        "/dev/zfs"
-      ];
-      LockPersonality = true;
-      # PrivateDevices = true; # blocks all `DeviceAllow` devices
-      # PrivateUsers = true; # blocks some capability needed for zpool to locate pools
-      ProcSubset = "pid";
-      ProtectClock = true;
-      ProtectControlGroups = true;
-      ProtectHome = true;
-      ProtectHostname = true;
-      ProtectKernelLogs = true;
-      # ProtectKernelModules = true; # need ZFS kernel module access for zpool command
-      ProtectKernelTunables = true;
-      ProtectProc = "invisible";
-      RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
-      RestrictNamespaces = true;
-      RestrictRealtime = true;
-      SystemCallArchitectures = "native";
-      SystemCallFilter = ["@system-service" "~@privileged" "~@resources"];
-      UMask = "0077";
-    };
   in {
     options.services.${name} = {
       enable = lib.mkEnableOption "${name} service";
@@ -88,47 +62,15 @@
           group = "zpool-status-exporter";
         };
       };
-      systemd.services.${name} = {
-        description = "${name} server";
-        # TODO remove Tmux-test serviceConfig
-        # serviceConfig =
-        #   {
-        #     # enter via:   tmux -S /run/myService/tmux.socket attach
-        #     ExecStart = "${pkgs.tmux}/bin/tmux -S /run/myService/tmux.socket new-session -s my-session -d";
-        #     ExecStop = "${pkgs.tmux}/bin/tmux -S /run/myService/tmux.socket kill-session -t my-session";
-        #     Type = "forking";
-
-        #     # Used as root directory
-        #     RuntimeDirectory = "myService";
-        #     RootDirectory = "/run/myService";
-
-        #     BindReadOnlyPaths = [
-        #       "/nix/store"
-
-        #       # So tmux uses /bin/sh as shell
-        #       "/bin"
-        #     ];
-
-        #     # This sets up a private /dev/tty
-        #     # The tmux server would crash without this
-        #     # since there would be nothing in /dev
-        #     # PrivateDevices = true;
-        #   }
-        #   // hardening;
-        serviceConfig =
-          {
-            Type = "simple";
-            ExecStart = "${cfg.package}/bin/${name}";
-            User = "zpool-status-exporter";
-            Group = "zpool-status-exporter";
-          }
-          // hardening;
-        wantedBy = ["default.target"];
-        path = [config.boot.zfs.package];
-        environment = {
-          LISTEN_ADDRESS = cfg.listen_address;
-          BASIC_AUTH_KEYS_FILE = cfg.basic_auth_keys_file;
-        };
+      systemd.services.${name} = (import ./systemd.nix).service {
+        inherit name;
+        inherit
+          (cfg)
+          listen_address
+          basic_auth_keys_file
+          ;
+        zpool-status-exporter = cfg.package;
+        zfs = config.boot.zfs.package;
       };
       assertions = [
         {
