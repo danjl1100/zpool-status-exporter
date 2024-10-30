@@ -41,6 +41,8 @@
     nixos = import ./nix/nixos.nix {
       overlay = self.overlays.default;
     };
+
+    systemd = import ./nix/systemd.nix;
   in
     flake-utils.lib.eachSystem target_systems (
       system: let
@@ -52,6 +54,15 @@
         package = pkgs.callPackage ./nix/package.nix arguments.for_package;
 
         alejandra = pkgs.callPackage ./nix/alejandra.nix {};
+
+        systemd-render-check = systemd.render_check {
+          inherit
+            nixpkgs
+            pkgs
+            ;
+          zpool-status-exporter = package.${package.crate-name};
+          inherit (nixos) nixosModules;
+        };
       in {
         inherit (package) apps;
 
@@ -69,13 +80,17 @@
           ${crate-name} = package.${crate-name};
           default = package.${crate-name};
 
-          inherit vm-tests;
+          inherit
+            vm-tests
+            systemd-render-check
+            ;
 
           all-long-tests = pkgs.symlinkJoin {
             name = "all-long-tests";
             paths = [
               vm-tests
               package.tests-ignored
+              systemd-render-check
             ];
           };
         };
@@ -106,5 +121,11 @@
         };
 
       inherit (nixos) nixosModules;
+
+      lib = {
+        systemd = {
+          inherit (systemd) service render_service;
+        };
+      };
     };
 }
