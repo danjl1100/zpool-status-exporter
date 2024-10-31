@@ -14,6 +14,7 @@
       flake = false;
     };
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.05";
+    flake-compat.url = "github:nix-community/flake-compat";
   };
 
   outputs = {
@@ -21,6 +22,7 @@
     self,
     flake-utils,
     nixpkgs,
+    flake-compat,
     # rust
     rust-overlay,
     crane,
