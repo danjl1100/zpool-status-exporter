@@ -52,14 +52,16 @@ in rec {
     name,
     listen_address,
     basic_auth_keys_file,
+    user ? "zpool-status-exporter",
+    group ? "zpool-status-exporter",
   }: {
     description = "${name} server";
     serviceConfig =
       {
         Type = "simple";
         ExecStart = "${zpool-status-exporter}/bin/zpool-status-exporter";
-        User = "zpool-status-exporter";
-        Group = "zpool-status-exporter";
+        User = user;
+        Group = group;
       }
       // hardening;
     wantedBy = ["default.target"];
