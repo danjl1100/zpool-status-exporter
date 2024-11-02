@@ -32,6 +32,22 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("refusing to run as super-user, try a non-privileged user");
     }
 
-    let args = zpool_status_exporter::Args::parse();
-    time_context.serve(&args, Some(shutdown_rx))
+    if is_oneshot_test_print() {
+        let metrics = time_context.get_metrics_now()?;
+        println!("{metrics}");
+        Ok(())
+    } else {
+        let args = zpool_status_exporter::Args::parse();
+        time_context.serve(&args, Some(shutdown_rx))
+    }
+}
+
+fn is_oneshot_test_print() -> bool {
+    let mut args = std::env::args();
+    if args.len() == 2 {
+        let arg = args.nth(1).expect("second arg exists, in list of length 2");
+        arg == "--oneshot-test-print"
+    } else {
+        false
+    }
 }

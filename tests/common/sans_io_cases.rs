@@ -22,7 +22,13 @@ fn run_test(full_input: &str) -> anyhow::Result<String> {
             anyhow::bail!("missing timestamp line {TEST_TIMESTAMP:} in input")
         };
 
-        time::OffsetDateTime::from_unix_timestamp(timestamp_str.parse()?)?
+        let timestamp = timestamp_str.parse()?;
+        let datetime_old = time::OffsetDateTime::from_unix_timestamp(timestamp)?;
+
+        let datetime_jiff =
+            jiff::Timestamp::from_second(timestamp)?.to_zoned(jiff::tz::TimeZone::UTC);
+
+        (datetime_old, datetime_jiff)
     };
     let compute_start_time = None; // compute time is unpredictable, cannot fake end duration
 

@@ -20,7 +20,7 @@ pub struct PoolMetrics {
     pub name: String,
     pub state: Option<DeviceStatus>,
     pub pool_status: Option<PoolStatusDescription>,
-    pub scan_status: Option<(ScanStatus, OffsetDateTime)>,
+    pub scan_status: Option<(ScanStatus, (OffsetDateTime, jiff::Zoned))>,
     pub devices: Vec<DeviceMetrics>,
     pub error: Option<ErrorStatus>,
 }
@@ -64,7 +64,7 @@ pub enum ScanStatus {
     Resilvered,
     // misc
     ScrubInProgress,
-    // TODO
+    // TODO Add new errors here
     // errors
 }
 #[allow(missing_docs)]
@@ -282,7 +282,10 @@ impl PoolMetrics {
     }
 }
 impl TimeContext {
-    fn parse_scan_content(&self, content: &str) -> anyhow::Result<(ScanStatus, OffsetDateTime)> {
+    fn parse_scan_content(
+        &self,
+        content: &str,
+    ) -> anyhow::Result<(ScanStatus, (OffsetDateTime, jiff::Zoned))> {
         const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
 
         // remove extra lines - status is only on first line
@@ -300,16 +303,27 @@ impl TimeContext {
         let scan_status = ScanStatus::from(message);
 
         // parse timestamp
-        let timestamp = {
-            let format = format_description!(
-                "[weekday repr:short] [month repr:short] [day padding:space] [hour padding:zero repr:24]:[minute]:[second] [year]"
-            );
-            let timestamp = PrimitiveDateTime::parse(timestamp, &format)
-                .with_context(|| format!("timestamp string {timestamp:?}"))?;
-            timestamp.assume_offset(self.local_offset)
-        };
+        let timestamp = self
+            .parse_timestamp(timestamp)
+            .with_context(|| format!("timestamp string {timestamp:?}"))?;
 
         Ok((scan_status, timestamp))
+    }
+    /// Parse a timestamp of this format from zpool status: "Sun Oct 27 15:14:51 2024"
+    fn parse_timestamp(&self, timestamp: &str) -> anyhow::Result<(OffsetDateTime, jiff::Zoned)> {
+        let format_jiff = "%a %b %d %T %Y";
+        let timestamp_jiff = jiff::fmt::strtime::BrokenDownTime::parse(format_jiff, timestamp)?
+            .to_datetime()?
+            .to_zoned(self.local_offset_jiff.clone())?;
+
+        let format = format_description!(
+                "[weekday repr:short] [month repr:short] [day padding:space] [hour padding:zero repr:24]:[minute]:[second] [year]"
+            );
+        let timestamp = PrimitiveDateTime::parse(timestamp, &format)?;
+        // println!("{timestamp_jiff:?} JIFF  <--> TIME {timestamp:?}");
+        let timestamp_old = timestamp.assume_offset(self.local_offset);
+
+        Ok((timestamp_old, timestamp_jiff))
     }
 }
 

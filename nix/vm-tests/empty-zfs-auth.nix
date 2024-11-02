@@ -5,7 +5,7 @@
   listen_address = "127.0.0.1:1234";
 in
   pkgs.nixosTest {
-    name = "local-services-test-auth";
+    name = "empty-zfs-auth";
     nodes.machine = {pkgs, ...}: {
       imports = [nixosModule];
       boot.supportedFilesystems = ["zfs"];
@@ -22,6 +22,7 @@ in
     };
     testScript = ''
       machine.wait_for_unit("default.target")
+      machine.wait_for_unit("zpool-status-exporter.service")
       machine.fail("curl --fail http://${listen_address}/metrics")
       machine.succeed("curl --fail -u john:doe http://${listen_address}/metrics")
       machine.succeed("curl --fail -u john:doe http://${listen_address}/metrics | grep '# no pools reported'")

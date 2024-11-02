@@ -52,6 +52,7 @@ pub struct Shutdown;
 #[must_use]
 pub struct TimeContext {
     local_offset: UtcOffset,
+    local_offset_jiff: jiff::tz::TimeZone,
 }
 impl TimeContext {
     /// Recommend to call this function in main, before all other actions
@@ -75,14 +76,30 @@ impl TimeContext {
 
             local_offset.expect("soundness temporarily disabled, to skip thread checks")
         };
+        let local_offset_jiff = jiff::tz::TimeZone::system();
 
-        Self { local_offset }
+        Self {
+            local_offset,
+            local_offset_jiff,
+        }
     }
 
     /// Constructs a context for UTC only (not actually synchronized to the local time offset)
     pub fn new_assume_local_is_utc() -> Self {
         let local_offset = UtcOffset::UTC;
-        Self { local_offset }
+        let local_offset_jiff = jiff::tz::TimeZone::UTC;
+        Self {
+            local_offset,
+            local_offset_jiff,
+        }
+    }
+
+    /// Returns the current metrics as a string (no server)
+    ///
+    /// # Errors
+    /// Returns an error if the command execution fails, the output is non-utf8, or parsing fails
+    pub fn get_metrics_now(&self) -> anyhow::Result<String> {
+        self.timestamp_now().get_metrics_str()
     }
 
     /// Spawn an HTTP server on the address specified by args
@@ -120,7 +137,7 @@ impl TimeContext {
 
         // ensure fail-fast
         {
-            self.timestamp_now().get_metrics_str()?;
+            self.get_metrics_now()?;
         }
 
         println!("Listening at http://{listen_address:?}");
@@ -168,18 +185,20 @@ impl TimeContext {
     /// Creates a new timestamp instance from the current date/time
     pub fn timestamp_now(&self) -> Timestamp<'_> {
         let datetime = time::OffsetDateTime::now_utc();
+        let datetime_jiff = jiff::Zoned::now();
         let compute_time_start = Instant::now();
-        self.timestamp_at(datetime, Some(compute_time_start))
+        self.timestamp_at((datetime, datetime_jiff), Some(compute_time_start))
     }
     /// Creates a new timestamp instance from the specified date/time
     pub fn timestamp_at(
         &self,
-        datetime: time::OffsetDateTime,
+        (datetime, datetime_jiff): (time::OffsetDateTime, jiff::Zoned),
         compute_time_start: Option<Instant>,
     ) -> Timestamp<'_> {
         Timestamp {
             time_context: self,
             datetime,
+            datetime_jiff,
             compute_time_start,
         }
     }
@@ -210,6 +229,7 @@ fn respond_code(
 pub struct Timestamp<'a> {
     time_context: &'a TimeContext,
     datetime: time::OffsetDateTime,
+    datetime_jiff: jiff::Zoned,
     /// If present, start time for timing the computation
     compute_time_start: Option<Instant>,
 }
@@ -280,6 +300,7 @@ impl Timestamp<'_> {
         Ok(fmt::format_metrics(
             zpool_metrics,
             self.datetime,
+            self.datetime_jiff.clone(), // FIXME
             self.compute_time_start,
         ))
     }

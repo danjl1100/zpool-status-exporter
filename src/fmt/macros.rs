@@ -80,10 +80,9 @@ macro_rules! value_enum {
                 /// Returns the value from the specified `Option`
                 pub fn from_opt<T>(source: &Option<T>) -> u32
                 where
-                    Self: From<T>,
-                    T: Copy,
+                    Self: for<'a> From<&'a T>,
                 {
-                    source.map(Self::from).unwrap_or_default().value()
+                    source.as_ref().map(Self::from).unwrap_or_default().value()
                 }
                 #[allow(clippy::must_use_candidate, missing_docs)]
                 pub fn value(self) -> u32 {
@@ -93,8 +92,8 @@ macro_rules! value_enum {
                     }
                 }
             }
-            impl From<$source> for $name {
-                fn from(source: $source) -> Self {
+            impl From<&$source> for $name {
+                fn from(source: &$source) -> Self {
                     match source {
                         $(
                             $source::$variant => Self::$variant
@@ -102,8 +101,8 @@ macro_rules! value_enum {
                     }
                 }
             }
-            impl<T> From<($source, T)> for $name {
-                fn from((source, _): ($source, T)) -> Self {
+            impl<T> From<&($source, T)> for $name {
+                fn from((source, _): &($source, T)) -> Self {
                     source.into()
                 }
             }

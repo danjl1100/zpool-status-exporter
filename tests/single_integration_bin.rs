@@ -24,6 +24,7 @@ mod common {
     mod child_stderr;
     mod end_to_end;
     mod end_to_end_auth;
+    mod oneshot;
 
     mod sans_io_cases;
 

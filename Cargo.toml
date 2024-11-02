@@ -26,6 +26,9 @@ panic = "deny"
 [lints.rust]
 # docs!
 missing_docs = "deny"
+#TODO reinstate
+# # no unsafe
+# unsafe_code = "forbid"
 
 [lints.rustdoc]
 # docs!
@@ -37,6 +40,7 @@ ascii = "1.1.0"
 base64 = "0.22"
 clap = { version = "4.4.18", features = ["derive", "cargo", "env"] }
 ctrlc = "3.4.2"
+jiff = "0.1.14"
 nix = { version = "0.29", features = ["user", "signal"] }
 time = { version = "0.3.34", features = ["macros", "parsing", "local-offset"] }
 tiny_http = "0.12.0"

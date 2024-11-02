@@ -112,10 +112,11 @@ in rec {
       inherit src;
     };
 
-    # Audit dependencies
-    audit = craneLib.cargoAudit {
-      inherit src advisory-db;
-    };
+    # TODO restore when cargo-audit 0.21.0 hits nixpkgs-24.05 (if it ever does?) for v4 Cargo.lock support
+    # # Audit dependencies
+    # audit = craneLib.cargoAudit {
+    #   inherit src advisory-db;
+    # };
 
     # Run tests with cargo-nextest
     # Consider setting `doCheck = false` on `my-crate` if you do not want
