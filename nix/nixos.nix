@@ -39,12 +39,14 @@
 
           NOTE: Root is not allowed
         '';
+        default = "zpool-status-exporter";
       };
       group = lib.mkOption {
         type = lib.types.str;
         description = ''
           Group to run the zpool-status-exporter service
         '';
+        default = "zpool-status-exporter";
       };
       basic_auth_keys_file = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
@@ -73,11 +75,11 @@
         overlay
       ];
       users = lib.mkIf cfg.create_user_group {
-        groups.zpool-status-exporter = {};
-        users.zpool-status-exporter = {
+        groups.${cfg.group} = {};
+        users.${cfg.user} = {
           isSystemUser = true;
           description = "zpool-status-exporter server user";
-          group = "zpool-status-exporter";
+          inherit (cfg) group;
         };
       };
       systemd.services.${name} = (import ./systemd.nix).service {
@@ -85,6 +87,7 @@
         inherit
           (cfg)
           user
+          group
           listen_address
           basic_auth_keys_file
           wants
