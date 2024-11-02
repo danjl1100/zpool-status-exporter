@@ -54,8 +54,10 @@ in rec {
     basic_auth_keys_file,
     user ? "zpool-status-exporter",
     group ? "zpool-status-exporter",
+    wants ? [],
+    after ? [],
   }: {
-    description = "${name} server";
+    description = "${name} Web Server";
     serviceConfig =
       {
         Type = "simple";
@@ -70,6 +72,10 @@ in rec {
       LISTEN_ADDRESS = listen_address;
       BASIC_AUTH_KEYS_FILE = basic_auth_keys_file;
     };
+    inherit
+      wants
+      after
+      ;
   };
 
   render_service = {
@@ -84,10 +90,17 @@ in rec {
       wantedBy,
       path,
       environment,
+      wants,
+      after,
     }:
       pkgs.symlinkJoin {
         name = "${name}_systemd_rendered";
         paths = let
+          unit_attrs = {
+            After = pkgs.lib.strings.concatStringsSep " " after;
+            Description = description;
+            Wants = pkgs.lib.strings.concatStringsSep " " wants;
+          };
           environment_attrs = {
             Environment =
               pkgs.lib.mapAttrsToList
@@ -112,11 +125,12 @@ in rec {
 
           lines =
             [
-              ''
-                [Unit]
-                Description=${description}
-
-                [Service]''
+              "[Unit]"
+            ]
+            ++ (attrToLines unit_attrs)
+            ++ [
+              ""
+              "[Service]"
             ]
             ++ (attrToLines environment_attrs)
             ++ (attrToLines serviceConfig)
@@ -141,6 +155,9 @@ in rec {
     input_params = {
       listen_address = "127.0.0.1:4589739485";
       basic_auth_keys_file = "/path/to/secrets/basic_auth_keys_file.txt";
+      user = "my-special-user";
+      wants = ["wants-some-other.service" "wants-another.service"];
+      after = ["after1.service" "after2.service"];
     };
 
     # use `pkgs` and `nixosModules` to build a system, to examine systemd output
@@ -164,8 +181,11 @@ in rec {
               enable = true;
               inherit
                 (input_params)
+                user
                 listen_address
                 basic_auth_keys_file
+                wants
+                after
                 ;
             };
           })
@@ -193,8 +213,11 @@ in rec {
           zfs = "<PATH TO ZFS>";
           inherit
             (input_params)
+            user
             listen_address
             basic_auth_keys_file
+            wants
+            after
             ;
         };
       };

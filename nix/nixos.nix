@@ -7,6 +7,10 @@
   }: let
     name = "zpool-status-exporter";
     cfg = config.services.${name};
+
+    # a type for options that take a unit name
+    # <https://github.com/NixOS/nixpkgs/blob/b971d88c583c796772ca9cea06e480d6d1980d73/nixos/lib/systemd-lib.nix#L64>
+    unitNameType = lib.types.strMatching "[a-zA-Z0-9@%:_.\\-]+[.](service|socket|device|mount|automount|swap|target|path|timer|scope|slice)";
   in {
     options.services.${name} = {
       enable = lib.mkEnableOption "${name} service";
@@ -49,6 +53,20 @@
         '';
         default = null;
       };
+      wants = lib.mkOption {
+        type = lib.types.listOf unitNameType;
+        description = ''
+          Start the specified units when this unit is started.
+        '';
+        default = ["network-online.target"];
+      };
+      after = lib.mkOption {
+        type = lib.types.listOf unitNameType;
+        description = ''
+          If the specified units are started at the same time as this unit, delay this unit until they have started.
+        '';
+        default = ["network-online.target"];
+      };
     };
     config = lib.mkIf cfg.enable {
       nixpkgs.overlays = [
@@ -66,8 +84,11 @@
         inherit name;
         inherit
           (cfg)
+          user
           listen_address
           basic_auth_keys_file
+          wants
+          after
           ;
         zpool-status-exporter = cfg.package;
         zfs = config.boot.zfs.package;
