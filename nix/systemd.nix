@@ -17,7 +17,8 @@ let
     # ProtectKernelModules = true; # need ZFS kernel module access for zpool command
     ProtectKernelTunables = true;
     ProtectProc = "invisible";
-    RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
+    # AF_UNIX is needed for the `sd_notify` socket to signal the service is listening and ready
+    RestrictAddressFamilies = ["AF_INET" "AF_INET6" "AF_UNIX"];
     RestrictNamespaces = true;
     RestrictRealtime = true;
     SystemCallArchitectures = "native";
@@ -60,7 +61,10 @@ in rec {
     description = "${name} Web Server";
     serviceConfig =
       {
-        Type = "simple";
+        # Binary uses `sd_notify` to report when the server is ready
+        Type = "notify";
+        # "main" is the default for Type="notify", but why not be explicit
+        NotifyAccess = "main";
         ExecStart = "${zpool-status-exporter}/bin/zpool-status-exporter";
         User = user;
         Group = group;

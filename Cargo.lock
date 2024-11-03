@@ -303,6 +303,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
+name = "sd-notify"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1be20c5f7f393ee700f8b2f28ea35812e4e212f40774b550cd2a93ea91684451"
+
+[[package]]
 name = "serde"
 version = "1.0.214"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -492,6 +498,7 @@ dependencies = [
  "jiff",
  "minreq",
  "nix",
+ "sd-notify",
  "serde",
  "tempfile",
  "tiny_http",

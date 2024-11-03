@@ -49,6 +49,9 @@ pub struct Args {
 /// Signal to cleanly terminate after finishing the current request (if any)
 pub struct Shutdown;
 
+/// Signal that the server is ready to receive requests
+pub struct Ready;
+
 const TEMPLATE_ROOT_NAME: &str = "root";
 
 /// System local-time context for calculating durations
@@ -143,6 +146,7 @@ impl AppContext {
     pub fn serve(
         &self,
         args: &Args,
+        mut ready_tx: Option<std::sync::mpsc::Sender<Ready>>,
         mut shutdown_rx: Option<std::sync::mpsc::Receiver<Shutdown>>,
     ) -> anyhow::Result<()> {
         const RECV_TIMEOUT: Duration = Duration::from_millis(100);
@@ -171,6 +175,11 @@ impl AppContext {
         println!("Listening at http://{listen_address:?}");
         if let Some(auth_rules) = &auth_rules {
             auth_rules.print_start_message();
+        }
+
+        if let Some(ready_tx) = ready_tx.take() {
+            // ignore "ready" receive errors
+            let _ = ready_tx.send(Ready);
         }
 
         while Self::check_shutdown(shutdown_rx.as_mut())?.is_none() {
@@ -319,7 +328,7 @@ impl Timestamp<'_> {
     /// Parses the `zpool_output` string and returns a formatted Prometheus-style metrics document
     ///
     /// # Errors
-    /// Returns errors when [`TimeContext::parse_zfs_metrics`] fails
+    /// Returns errors when [`AppContext::parse_zfs_metrics`] fails
     pub fn get_metrics_for_output(&self, zpool_output: &str) -> anyhow::Result<String> {
         let zpool_metrics = self.app_context.parse_zfs_metrics(zpool_output)?;
 

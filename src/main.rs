@@ -36,13 +36,23 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("refusing to run as super-user, try a non-privileged user");
     }
 
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let Ok(zpool_status_exporter::Ready) = ready_rx.recv() {
+            let notify_result = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+            if let Err(err) = notify_result {
+                eprintln!("error sending sd_notify Ready: {err}");
+            }
+        }
+    });
+
     if is_oneshot_test_print() {
         let metrics = app_context.get_metrics_now()?;
         println!("{metrics}");
         Ok(())
     } else {
         let args = zpool_status_exporter::Args::parse();
-        app_context.serve(&args, Some(shutdown_rx))
+        app_context.serve(&args, Some(ready_tx), Some(shutdown_rx))
     }
 }
 

@@ -18,7 +18,6 @@ in
     testScript = ''
       machine.wait_for_unit("default.target")
       machine.wait_for_unit("zpool-status-exporter.service")
-      machine.succeed("sleep 1")
       machine.succeed("curl http://${listen_address}/metrics")
       machine.succeed("curl http://${listen_address}/metrics | grep '# no pools reported'")
       machine.succeed("curl http://${listen_address}/")
