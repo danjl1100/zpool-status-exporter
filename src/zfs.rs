@@ -10,7 +10,7 @@
 //! Therefore, errors are only returned when the input does not match the expected format.
 //! This is a signal that a major format change happened (e.g. requiring updates to this library).
 
-use crate::TimeContext;
+use crate::AppContext;
 use anyhow::Context as _;
 use std::str::FromStr;
 
@@ -100,7 +100,7 @@ enum ZpoolStatusSection {
     Devices,
 }
 
-impl TimeContext {
+impl AppContext {
     /// Extracts discrete metrics from the provided output string (expects `zpool status` format)
     ///
     /// # Errors
@@ -223,7 +223,7 @@ impl PoolMetrics {
         &mut self,
         label: &str,
         content: &str,
-        time_context: &TimeContext,
+        app_context: &AppContext,
     ) -> anyhow::Result<Option<ZpoolStatusSection>> {
         fn err_if_previous<T>(
             (label, content): (&str, &str),
@@ -249,7 +249,7 @@ impl PoolMetrics {
                 err_if_previous((label, content), self.state.replace(new_state))
             }
             "scan" => {
-                let new_scan_status = time_context.parse_scan_content(content)?;
+                let new_scan_status = app_context.parse_scan_content(content)?;
                 err_if_previous((label, content), self.scan_status.replace(new_scan_status))
             }
             "config" => {
@@ -280,7 +280,7 @@ impl PoolMetrics {
         Ok(())
     }
 }
-impl TimeContext {
+impl AppContext {
     fn parse_scan_content(&self, content: &str) -> anyhow::Result<(ScanStatus, jiff::Zoned)> {
         const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
 

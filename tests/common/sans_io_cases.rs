@@ -28,7 +28,7 @@ fn run_test(full_input: &str) -> anyhow::Result<String> {
     };
     let compute_start_time = None; // compute time is unpredictable, cannot fake end duration
 
-    zpool_status_exporter::TimeContext::new_assume_local_is_utc()
+    zpool_status_exporter::AppContext::new_assume_local_is_utc()
         .timestamp_at(datetime, compute_start_time)
         .get_metrics_for_output(input)
 }

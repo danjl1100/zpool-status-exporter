@@ -17,7 +17,12 @@
 use clap::Parser as _;
 
 fn main() -> anyhow::Result<()> {
-    let time_context = zpool_status_exporter::TimeContext::new();
+    let mut app_context = zpool_status_exporter::AppContext::new();
+    {
+        let cmd = <zpool_status_exporter::Args as clap::CommandFactory>::command();
+        let app_version = cmd.get_version();
+        app_context.set_app_version(app_version);
+    }
 
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
     ctrlc::set_handler(move || {
@@ -32,12 +37,12 @@ fn main() -> anyhow::Result<()> {
     }
 
     if is_oneshot_test_print() {
-        let metrics = time_context.get_metrics_now()?;
+        let metrics = app_context.get_metrics_now()?;
         println!("{metrics}");
         Ok(())
     } else {
         let args = zpool_status_exporter::Args::parse();
-        time_context.serve(&args, Some(shutdown_rx))
+        app_context.serve(&args, Some(shutdown_rx))
     }
 }
 

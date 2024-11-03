@@ -27,6 +27,7 @@
 use crate::auth::{AuthResult, AuthRules, DebugUserStringRef};
 use anyhow::Context as _;
 use std::time::{Duration, Instant};
+use tinytemplate::TinyTemplate;
 
 pub mod auth;
 pub mod fmt;
@@ -34,6 +35,7 @@ pub mod zfs;
 
 /// Command-line arguments for the server
 #[derive(clap::Parser)]
+#[clap(version)]
 pub struct Args {
     /// Bind address for the server
     #[clap(env)]
@@ -47,17 +49,27 @@ pub struct Args {
 /// Signal to cleanly terminate after finishing the current request (if any)
 pub struct Shutdown;
 
+const TEMPLATE_ROOT_NAME: &str = "root";
+
 /// System local-time context for calculating durations
 #[must_use]
-pub struct TimeContext {
+pub struct AppContext {
     timezone: jiff::tz::TimeZone,
+    templates: TinyTemplate<'static>,
+    template_context: TemplateContext,
 }
-impl Default for TimeContext {
+
+#[derive(serde::Serialize)]
+struct TemplateContext {
+    name_suffix: String,
+}
+
+impl Default for AppContext {
     fn default() -> Self {
         Self::new()
     }
 }
-impl TimeContext {
+impl AppContext {
     /// Recommend to call this function in main, before all other actions
     /// (with no decorators on main, no async executors, etc.)
     ///
@@ -68,15 +80,46 @@ impl TimeContext {
     ///
     #[allow(clippy::missing_panics_doc)]
     pub fn new() -> Self {
-        let timezone = jiff::tz::TimeZone::system();
-
-        Self { timezone }
+        Self::new_with_timezone(jiff::tz::TimeZone::system())
     }
 
     /// Constructs a context for UTC only (not actually synchronized to the local time offset)
     pub fn new_assume_local_is_utc() -> Self {
-        let timezone = jiff::tz::TimeZone::UTC;
-        Self { timezone }
+        Self::new_with_timezone(jiff::tz::TimeZone::UTC)
+    }
+
+    fn new_with_timezone(timezone: jiff::tz::TimeZone) -> Self {
+        const ROOT_HTML: &str = include_str!("root.html");
+
+        let mut templates = TinyTemplate::new();
+        templates
+            .add_template(TEMPLATE_ROOT_NAME, ROOT_HTML)
+            .expect("root.html should be a valid template");
+
+        let template_context = TemplateContext {
+            name_suffix: String::new(),
+        };
+
+        Self {
+            timezone,
+            templates,
+            template_context,
+        }
+    }
+
+    /// Sets the app version string for the root page
+    pub fn set_app_version(&mut self, app_version: Option<&str>) {
+        if let Some(app_version) = app_version {
+            self.template_context.name_suffix = format!(" v{app_version}");
+        } else {
+            self.template_context.name_suffix.clear();
+        }
+    }
+
+    fn render_root_html(&self) -> String {
+        self.templates
+            .render(TEMPLATE_ROOT_NAME, &self.template_context)
+            .expect("root.html template should render as valid")
     }
 
     /// Returns the current metrics as a string (no server)
@@ -180,7 +223,7 @@ impl TimeContext {
         compute_time_start: Option<Instant>,
     ) -> Timestamp<'_> {
         Timestamp {
-            time_context: self,
+            app_context: self,
             datetime,
             compute_time_start,
         }
@@ -210,7 +253,7 @@ fn respond_code(
 /// Start time for parsing timestamps and formatting time-based metrics
 #[must_use]
 pub struct Timestamp<'a> {
-    time_context: &'a TimeContext,
+    app_context: &'a AppContext,
     datetime: jiff::Zoned,
     /// If present, start time for timing the computation
     compute_time_start: Option<Instant>,
@@ -222,7 +265,7 @@ impl Timestamp<'_> {
 
         let url = request.url();
         let result = if url == ENDPOINT_ROOT {
-            let response = Self::get_public_root_response();
+            let response = self.get_public_root_response();
             request.respond(response).context("root response")
         } else {
             match auth {
@@ -252,9 +295,10 @@ impl Timestamp<'_> {
             eprintln!("failed to send response: {err:#}");
         }
     }
-    fn get_public_root_response() -> tiny_http::Response<impl std::io::Read> {
-        const ROOT_HTML: &str = include_str!("root.html");
-        tiny_http::Response::from_string(ROOT_HTML).with_header(
+    fn get_public_root_response(&self) -> tiny_http::Response<impl std::io::Read> {
+        let root_html = self.app_context.render_root_html();
+
+        tiny_http::Response::from_string(root_html).with_header(
             tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..])
                 .expect("valid header"),
         )
@@ -277,7 +321,7 @@ impl Timestamp<'_> {
     /// # Errors
     /// Returns errors when [`TimeContext::parse_zfs_metrics`] fails
     pub fn get_metrics_for_output(&self, zpool_output: &str) -> anyhow::Result<String> {
-        let zpool_metrics = self.time_context.parse_zfs_metrics(zpool_output)?;
+        let zpool_metrics = self.app_context.parse_zfs_metrics(zpool_output)?;
 
         Ok(fmt::format_metrics(
             zpool_metrics,
