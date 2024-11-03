@@ -72,9 +72,9 @@ use crate::{
 };
 use std::time::Instant;
 
-struct FormatPoolMetrics {
+struct FormatPoolMetrics<'a> {
     pools: Vec<PoolMetrics>,
-    now: jiff::Zoned,
+    now: &'a jiff::Zoned,
     /// If present, start time for the computation
     ///
     /// When not provided, no duration will be reported
@@ -85,7 +85,7 @@ struct FormatPoolMetrics {
 #[must_use]
 pub fn format_metrics(
     pools: Vec<PoolMetrics>,
-    now: jiff::Zoned,
+    now: &'_ jiff::Zoned,
     compute_time_start: Option<Instant>,
 ) -> String {
     FormatPoolMetrics {
@@ -159,7 +159,7 @@ mod context {
     }
 }
 
-impl std::fmt::Display for FormatPoolMetrics {
+impl std::fmt::Display for FormatPoolMetrics<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.pools.is_empty() {
             writeln!(f, "# no pools reported")?;
@@ -190,7 +190,7 @@ enum_all! {
         ErrorState,
     }
 }
-impl FormatPoolMetrics {
+impl FormatPoolMetrics<'_> {
     fn fmt_pool_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const POOL_STATE: meta::ValuesMetric<DeviceStatusValue> =
             meta::metric("pool_state", "Pool state").with_values();
@@ -233,7 +233,7 @@ impl FormatPoolMetrics {
                     S::ScanState => ScanStatusValue::from_opt(scan_status).into(),
                     S::ScanAge => {
                         let seconds = scan_status.as_ref().map_or(0.0, |(_, scan_time)| {
-                            (&self.now - scan_time)
+                            (self.now - scan_time)
                                 .total(jiff::Unit::Second)
                                 .expect("no overflow and relative zoned")
                         });
@@ -257,7 +257,7 @@ enum_all! {
         ErrorsChecksum,
     }
 }
-impl FormatPoolMetrics {
+impl FormatPoolMetrics<'_> {
     fn fmt_device_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const DEVICE_STATE: meta::ValuesMetric<DeviceStatusValue> =
             meta::metric("dev_state", "Device state").with_values();

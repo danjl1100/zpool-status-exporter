@@ -334,7 +334,7 @@ impl Timestamp<'_> {
 
         Ok(fmt::format_metrics(
             zpool_metrics,
-            self.datetime.clone(), // FIXME
+            &self.datetime,
             self.compute_time_start,
         ))
     }
