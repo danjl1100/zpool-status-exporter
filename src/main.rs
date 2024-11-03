@@ -52,7 +52,11 @@ fn main() -> anyhow::Result<()> {
         Ok(())
     } else {
         let args = zpool_status_exporter::Args::parse();
-        app_context.serve(&args, Some(ready_tx), Some(shutdown_rx))
+        app_context
+            .server_builder(&args)
+            .set_ready_sender(ready_tx)
+            .set_shutdown_receiver(shutdown_rx)
+            .serve()
     }
 }
 

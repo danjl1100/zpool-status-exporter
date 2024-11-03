@@ -133,6 +133,42 @@ impl AppContext {
         self.timestamp_now().get_metrics_str()
     }
 
+    /// Returns an HTTP server builder
+    pub fn server_builder<'a>(&'a self, args: &'a Args) -> ServerBuilder<'a> {
+        ServerBuilder {
+            app_context: self,
+            args,
+            ready_tx: None,
+            shutdown_rx: None,
+        }
+    }
+}
+
+/// Configuration for an HTTP server
+#[must_use]
+pub struct ServerBuilder<'a> {
+    app_context: &'a AppContext,
+    args: &'a Args,
+    ready_tx: Option<std::sync::mpsc::Sender<Ready>>,
+    shutdown_rx: Option<std::sync::mpsc::Receiver<Shutdown>>,
+}
+
+impl ServerBuilder<'_> {
+    /// Sets the sender to be notified when the server is [`Ready`]
+    pub fn set_ready_sender(mut self, ready_tx: std::sync::mpsc::Sender<Ready>) -> Self {
+        self.ready_tx = Some(ready_tx);
+        self
+    }
+
+    /// Sets the receiver for the server [`Shutdown`] signal
+    pub fn set_shutdown_receiver(
+        mut self,
+        shutdown_rx: std::sync::mpsc::Receiver<Shutdown>,
+    ) -> Self {
+        self.shutdown_rx = Some(shutdown_rx);
+        self
+    }
+
     /// Spawn an HTTP server on the address specified by args
     ///
     /// # Errors
@@ -143,19 +179,20 @@ impl AppContext {
     /// - shutdown receive fails (only if a `Receiver` was provided)
     /// - loading the auth key file fails
     ///
-    pub fn serve(
-        &self,
-        args: &Args,
-        mut ready_tx: Option<std::sync::mpsc::Sender<Ready>>,
-        mut shutdown_rx: Option<std::sync::mpsc::Receiver<Shutdown>>,
-    ) -> anyhow::Result<()> {
+    pub fn serve(self) -> anyhow::Result<()> {
         const RECV_TIMEOUT: Duration = Duration::from_millis(100);
         const RECV_SLEEP: Duration = Duration::from_millis(10);
 
-        let Args {
-            listen_address,
-            basic_auth_keys_file,
-        } = args;
+        let Self {
+            app_context,
+            args:
+                Args {
+                    listen_address,
+                    basic_auth_keys_file,
+                },
+            mut ready_tx,
+            mut shutdown_rx,
+        } = self;
 
         let auth_rules = basic_auth_keys_file
             .as_ref()
@@ -169,7 +206,7 @@ impl AppContext {
 
         // ensure fail-fast
         {
-            self.get_metrics_now()?;
+            app_context.get_metrics_now()?;
         }
 
         println!("Listening at http://{listen_address:?}");
@@ -190,7 +227,9 @@ impl AppContext {
                         auth_rules.query(&request)
                     });
                 match auth_result {
-                    Ok(auth_result) => self.timestamp_now().handle_request(request, auth_result),
+                    Ok(auth_result) => app_context
+                        .timestamp_now()
+                        .handle_request(request, auth_result),
                     Err(auth::InvalidHeaderError(err)) => {
                         dbg!(err);
                         respond_code(request, HTTP_BAD_REQUEST, None)?;
@@ -219,14 +258,29 @@ impl AppContext {
                 }
             })
     }
+}
+
+impl AppContext {
     /// Creates a new timestamp instance from the current date/time
     pub fn timestamp_now(&self) -> Timestamp<'_> {
         let datetime = jiff::Zoned::now();
         let compute_time_start = Instant::now();
         self.timestamp_at(datetime, Some(compute_time_start))
     }
-    /// Creates a new timestamp instance from the specified date/time
-    pub fn timestamp_at(
+    /// Creates a new timestamp instance from the specified UNIX UTC timestamp, or `None` if the
+    /// timestamp is out of bounds
+    #[must_use]
+    pub fn timestamp_at_unix_utc(
+        &self,
+        unix_utc_timestamp: i64,
+        compute_time_start: Option<Instant>,
+    ) -> Option<Timestamp<'_>> {
+        let datetime = jiff::Timestamp::from_second(unix_utc_timestamp)
+            .ok()?
+            .to_zoned(jiff::tz::TimeZone::UTC);
+        Some(self.timestamp_at(datetime, compute_time_start))
+    }
+    fn timestamp_at(
         &self,
         datetime: jiff::Zoned,
         compute_time_start: Option<Instant>,
@@ -328,7 +382,7 @@ impl Timestamp<'_> {
     /// Parses the `zpool_output` string and returns a formatted Prometheus-style metrics document
     ///
     /// # Errors
-    /// Returns errors when [`AppContext::parse_zfs_metrics`] fails
+    /// Returns errors when parsing ZFS metrics fails
     pub fn get_metrics_for_output(&self, zpool_output: &str) -> anyhow::Result<String> {
         let zpool_metrics = self.app_context.parse_zfs_metrics(zpool_output)?;
 
@@ -340,7 +394,7 @@ impl Timestamp<'_> {
     }
 }
 
-pub mod exec {
+mod exec {
     //! I/O portion of executing status commands
 
     use anyhow::Context;

@@ -26,7 +26,7 @@ pub(crate) fn get_header_www_authenticate() -> tiny_http::Header {
 }
 
 /// Configuration for authentication rules
-pub struct AuthRules {
+pub(crate) struct AuthRules {
     entries_sorted: Box<[String]>,
 }
 impl AuthRules {
@@ -66,7 +66,10 @@ impl AuthRules {
     ///
     /// Returns an error when the "Authorization" header is present, but does not contain a valid
     /// UTF-8 authentication string
-    pub fn query(&self, request: &tiny_http::Request) -> Result<AuthResult, InvalidHeaderError> {
+    pub(super) fn query(
+        &self,
+        request: &tiny_http::Request,
+    ) -> Result<AuthResult, InvalidHeaderError> {
         let header_authorization = get_header_authorization();
         let Some(auth_value) = request
             .headers()
@@ -110,12 +113,12 @@ fn parse_authorization_value(auth_value: &str) -> Result<String, InvalidHeaderEr
 }
 
 /// Lazy guarantee that the failure mode is specific to invalid headers
-pub struct InvalidHeaderError(pub anyhow::Error);
+pub(super) struct InvalidHeaderError(pub anyhow::Error);
 
 /// Result of parsing a request
 #[must_use]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AuthResult {
+pub(super) enum AuthResult {
     /// Provided authentication matches allow list rules
     Accept,
     /// Provided authentication failed the rules
@@ -126,14 +129,14 @@ pub enum AuthResult {
     NoneConfigured,
 }
 
-pub use debug_user_string::{DebugUserString, DebugUserStringRef};
+pub(crate) use debug_user_string::{DebugUserString, DebugUserStringRef};
 mod debug_user_string {
     const MAX_LEN: usize = 80;
 
     /// Trace of authorization contents (of a maximum length)
     #[allow(missing_docs)]
     #[derive(Clone, PartialEq, Eq)]
-    pub enum DebugUserString {
+    pub(crate) enum DebugUserString {
         Unchanged { value: Box<str> },
         Truncated { value: Box<str>, orig_len: usize },
     }

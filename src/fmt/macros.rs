@@ -78,11 +78,11 @@ macro_rules! value_enum {
             }
             impl $name {
                 /// Returns the value from the specified `Option`
-                pub fn from_opt<T>(source: &Option<T>) -> u32
+                pub fn from_opt<T>(source: Option<&T>) -> u32
                 where
                     Self: for<'a> From<&'a T>,
                 {
-                    source.as_ref().map(Self::from).unwrap_or_default().value()
+                    source.map(Self::from).unwrap_or_default().value()
                 }
                 #[allow(clippy::must_use_candidate, missing_docs)]
                 pub fn value(self) -> u32 {

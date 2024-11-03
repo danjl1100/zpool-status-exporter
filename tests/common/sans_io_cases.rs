@@ -12,24 +12,24 @@ use anyhow::Context;
 /// NOTE: The output does not include the total compute duration metric, to stay deterministic
 ///
 fn run_test(full_input: &str) -> anyhow::Result<String> {
-    let input;
-    let datetime = {
+    let (input, timestamp) = {
         const TEST_TIMESTAMP: &str = "TEST_TIMESTAMP=";
+
         let (timestamp_line, remainder) = full_input.split_once('\n').unwrap_or(("", full_input));
-        input = remainder;
+        let input = remainder;
 
         let Some(timestamp_str) = timestamp_line.strip_prefix(TEST_TIMESTAMP) else {
-            anyhow::bail!("missing timestamp line {TEST_TIMESTAMP:} in input")
+            anyhow::bail!("missing timestamp line {TEST_TIMESTAMP:?} in input")
         };
 
         let timestamp = timestamp_str.parse()?;
-
-        jiff::Timestamp::from_second(timestamp)?.to_zoned(jiff::tz::TimeZone::UTC)
+        (input, timestamp)
     };
     let compute_start_time = None; // compute time is unpredictable, cannot fake end duration
 
     zpool_status_exporter::AppContext::new_assume_local_is_utc()
-        .timestamp_at(datetime, compute_start_time)
+        .timestamp_at_unix_utc(timestamp, compute_start_time)
+        .ok_or_else(|| anyhow::anyhow!("invalid timestamp {timestamp} in input"))?
         .get_metrics_for_output(input)
 }
 

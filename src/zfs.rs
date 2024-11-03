@@ -15,7 +15,7 @@ use anyhow::Context as _;
 use std::str::FromStr;
 
 #[allow(missing_docs)]
-pub struct PoolMetrics {
+pub(crate) struct PoolMetrics {
     pub name: String,
     pub state: Option<DeviceStatus>,
     pub pool_status: Option<PoolStatusDescription>,
@@ -26,7 +26,7 @@ pub struct PoolMetrics {
 
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
-pub enum DeviceStatus {
+pub(crate) enum DeviceStatus {
     // unknown
     Unrecognized,
     // healthy
@@ -43,7 +43,7 @@ pub enum DeviceStatus {
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
-pub enum PoolStatusDescription {
+pub(super) enum PoolStatusDescription {
     // unknown
     Unrecognized,
     // healthy
@@ -55,7 +55,7 @@ pub enum PoolStatusDescription {
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
-pub enum ScanStatus {
+pub(super) enum ScanStatus {
     // unknown
     Unrecognized,
     // healthy
@@ -68,7 +68,7 @@ pub enum ScanStatus {
 }
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
-pub enum ErrorStatus {
+pub(super) enum ErrorStatus {
     Unrecognized,
     Ok,
     // errors
@@ -77,7 +77,7 @@ pub enum ErrorStatus {
 
 /// Numeric metrics for a device
 #[derive(Debug)]
-pub struct DeviceMetrics {
+pub(super) struct DeviceMetrics {
     /// 0-indexed depth of the device within the device tree
     pub depth: usize,
     /// Device name
@@ -115,7 +115,7 @@ impl AppContext {
     /// - Any missing line within the format will result in `None` in the returned struct
     ///     (e.g. no "errors: ..." line or no "scan: ..." line)
     ///
-    pub fn parse_zfs_metrics(&self, zpool_output: &str) -> anyhow::Result<Vec<PoolMetrics>> {
+    pub(crate) fn parse_zfs_metrics(&self, zpool_output: &str) -> anyhow::Result<Vec<PoolMetrics>> {
         let mut pools = vec![];
         // disambiguate from header sections and devices (which may contain COLON)
         let mut current_section = ZpoolStatusSection::default();

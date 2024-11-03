@@ -10,7 +10,7 @@ mod meta;
 // Keep the values stable, for continuity in prometheus history
 value_enum! {
     #[allow(missing_docs)]
-    pub enum DeviceStatusValue for DeviceStatus {
+    pub(crate) enum DeviceStatusValue for DeviceStatus {
         #[default]
         UnknownMissing => 0,
         Unrecognized => 1,
@@ -27,7 +27,7 @@ value_enum! {
         Unavail  => 100,
     }
     #[allow(missing_docs)]
-    pub enum PoolStatusDescriptionValue for PoolStatusDescription {
+    pub(crate) enum PoolStatusDescriptionValue for PoolStatusDescription {
         #[default]
         Normal => 0,
         Unrecognized => 1,
@@ -39,7 +39,7 @@ value_enum! {
         DataCorruption => 50,
     }
     #[allow(missing_docs)]
-    pub enum ScanStatusValue for ScanStatus {
+    pub(crate) enum ScanStatusValue for ScanStatus {
         #[default]
         UnknownMissing => 0,
         Unrecognized => 1,
@@ -52,7 +52,7 @@ value_enum! {
         // TODO Add new statuses here
     }
     #[allow(missing_docs)]
-    pub enum ErrorStatusValue for ErrorStatus {
+    pub(crate) enum ErrorStatusValue for ErrorStatus {
         #[default]
         UnknownMissing => 0,
         Unrecognized => 1,
@@ -83,7 +83,7 @@ struct FormatPoolMetrics<'a> {
 
 /// Returns the "prometheus style" output metrics for the specified `pools`
 #[must_use]
-pub fn format_metrics(
+pub(super) fn format_metrics(
     pools: Vec<PoolMetrics>,
     now: &'_ jiff::Zoned,
     compute_time_start: Option<Instant>,
@@ -226,11 +226,11 @@ impl FormatPoolMetrics<'_> {
                     error,
                 } = pool;
                 let value = match section {
-                    S::PoolState => DeviceStatusValue::from_opt(state).into(),
+                    S::PoolState => DeviceStatusValue::from_opt(state.as_ref()).into(),
                     S::PoolStatusDescription => {
-                        PoolStatusDescriptionValue::from_opt(pool_status).into()
+                        PoolStatusDescriptionValue::from_opt(pool_status.as_ref()).into()
                     }
-                    S::ScanState => ScanStatusValue::from_opt(scan_status).into(),
+                    S::ScanState => ScanStatusValue::from_opt(scan_status.as_ref()).into(),
                     S::ScanAge => {
                         let seconds = scan_status.as_ref().map_or(0.0, |(_, scan_time)| {
                             (self.now - scan_time)
@@ -239,7 +239,7 @@ impl FormatPoolMetrics<'_> {
                         });
                         seconds / SECONDS_PER_HOUR
                     }
-                    S::ErrorState => ErrorStatusValue::from_opt(error).into(),
+                    S::ErrorState => ErrorStatusValue::from_opt(error.as_ref()).into(),
                 };
                 context::Pool { pool_name }.write_kv(f, metric, value)?;
             }
