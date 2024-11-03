@@ -74,8 +74,7 @@ use std::time::Instant;
 
 struct FormatPoolMetrics {
     pools: Vec<PoolMetrics>,
-    now: time::OffsetDateTime,
-    now_jiff: jiff::Zoned,
+    now: jiff::Zoned,
     /// If present, start time for the computation
     ///
     /// When not provided, no duration will be reported
@@ -86,14 +85,12 @@ struct FormatPoolMetrics {
 #[must_use]
 pub fn format_metrics(
     pools: Vec<PoolMetrics>,
-    now: time::OffsetDateTime,
-    now_jiff: jiff::Zoned,
+    now: jiff::Zoned,
     compute_time_start: Option<Instant>,
 ) -> String {
     FormatPoolMetrics {
         pools,
         now,
-        now_jiff,
         compute_time_start,
     }
     .to_string()
@@ -235,26 +232,11 @@ impl FormatPoolMetrics {
                     }
                     S::ScanState => ScanStatusValue::from_opt(scan_status).into(),
                     S::ScanAge => {
-                        let seconds = scan_status.as_ref().map_or(
-                            0.0,
-                            |(_, (scan_time_old, scan_time_jiff))| {
-                                let seconds_old = (self.now - *scan_time_old).as_seconds_f64();
-                                if false {
-                                    // assert that `jiff` gets the same result
-                                    let seconds_jiff = (&self.now_jiff - scan_time_jiff)
-                                        .total(jiff::Unit::Second)
-                                        .expect("no overflow and relative zoned");
-                                    let seconds_error = seconds_jiff - seconds_old;
-                                    assert!(
-                                        seconds_error.abs() < 0.01,
-                                        "difference jiff - old = {seconds_error}\n\told {self_now} - {scan_time_old} = {seconds_old}\n\tjiff {self_now_jiff} - {scan_time_jiff} = {seconds_jiff}",
-                                        self_now = self.now,
-                                        self_now_jiff = self.now_jiff,
-                                    );
-                                }
-                                seconds_old
-                            },
-                        );
+                        let seconds = scan_status.as_ref().map_or(0.0, |(_, scan_time)| {
+                            (&self.now - scan_time)
+                                .total(jiff::Unit::Second)
+                                .expect("no overflow and relative zoned")
+                        });
                         seconds / SECONDS_PER_HOUR
                     }
                     S::ErrorState => ErrorStatusValue::from_opt(error).into(),

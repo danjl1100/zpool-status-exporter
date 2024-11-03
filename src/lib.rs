@@ -27,7 +27,6 @@
 use crate::auth::{AuthResult, AuthRules, DebugUserStringRef};
 use anyhow::Context as _;
 use std::time::{Duration, Instant};
-use time::{util::local_offset, UtcOffset};
 
 pub mod auth;
 pub mod fmt;
@@ -51,8 +50,12 @@ pub struct Shutdown;
 /// System local-time context for calculating durations
 #[must_use]
 pub struct TimeContext {
-    local_offset: UtcOffset,
-    local_offset_jiff: jiff::tz::TimeZone,
+    timezone: jiff::tz::TimeZone,
+}
+impl Default for TimeContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl TimeContext {
     /// Recommend to call this function in main, before all other actions
@@ -64,34 +67,16 @@ impl TimeContext {
     ///  - There shall be no other threads in the process
     ///
     #[allow(clippy::missing_panics_doc)]
-    pub unsafe fn new_unchecked() -> Self {
-        let local_offset = {
-            // SAFETY: caller has guaranteed no other threads exist in the process
-            unsafe { local_offset::set_soundness(local_offset::Soundness::Unsound) };
+    pub fn new() -> Self {
+        let timezone = jiff::tz::TimeZone::system();
 
-            let local_offset = UtcOffset::current_local_offset();
-
-            // SAFETY: called with `Soundness::Sound`
-            unsafe { local_offset::set_soundness(local_offset::Soundness::Sound) };
-
-            local_offset.expect("soundness temporarily disabled, to skip thread checks")
-        };
-        let local_offset_jiff = jiff::tz::TimeZone::system();
-
-        Self {
-            local_offset,
-            local_offset_jiff,
-        }
+        Self { timezone }
     }
 
     /// Constructs a context for UTC only (not actually synchronized to the local time offset)
     pub fn new_assume_local_is_utc() -> Self {
-        let local_offset = UtcOffset::UTC;
-        let local_offset_jiff = jiff::tz::TimeZone::UTC;
-        Self {
-            local_offset,
-            local_offset_jiff,
-        }
+        let timezone = jiff::tz::TimeZone::UTC;
+        Self { timezone }
     }
 
     /// Returns the current metrics as a string (no server)
@@ -184,21 +169,19 @@ impl TimeContext {
     }
     /// Creates a new timestamp instance from the current date/time
     pub fn timestamp_now(&self) -> Timestamp<'_> {
-        let datetime = time::OffsetDateTime::now_utc();
-        let datetime_jiff = jiff::Zoned::now();
+        let datetime = jiff::Zoned::now();
         let compute_time_start = Instant::now();
-        self.timestamp_at((datetime, datetime_jiff), Some(compute_time_start))
+        self.timestamp_at(datetime, Some(compute_time_start))
     }
     /// Creates a new timestamp instance from the specified date/time
     pub fn timestamp_at(
         &self,
-        (datetime, datetime_jiff): (time::OffsetDateTime, jiff::Zoned),
+        datetime: jiff::Zoned,
         compute_time_start: Option<Instant>,
     ) -> Timestamp<'_> {
         Timestamp {
             time_context: self,
             datetime,
-            datetime_jiff,
             compute_time_start,
         }
     }
@@ -228,8 +211,7 @@ fn respond_code(
 #[must_use]
 pub struct Timestamp<'a> {
     time_context: &'a TimeContext,
-    datetime: time::OffsetDateTime,
-    datetime_jiff: jiff::Zoned,
+    datetime: jiff::Zoned,
     /// If present, start time for timing the computation
     compute_time_start: Option<Instant>,
 }
@@ -299,8 +281,7 @@ impl Timestamp<'_> {
 
         Ok(fmt::format_metrics(
             zpool_metrics,
-            self.datetime,
-            self.datetime_jiff.clone(), // FIXME
+            self.datetime.clone(), // FIXME
             self.compute_time_start,
         ))
     }

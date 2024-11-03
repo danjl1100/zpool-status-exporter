@@ -17,8 +17,7 @@
 use clap::Parser as _;
 
 fn main() -> anyhow::Result<()> {
-    // SAFETY: no other threads exist in the process (first item in main)
-    let time_context = unsafe { zpool_status_exporter::TimeContext::new_unchecked() };
+    let time_context = zpool_status_exporter::TimeContext::new();
 
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
     ctrlc::set_handler(move || {

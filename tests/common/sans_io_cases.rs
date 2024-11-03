@@ -23,12 +23,8 @@ fn run_test(full_input: &str) -> anyhow::Result<String> {
         };
 
         let timestamp = timestamp_str.parse()?;
-        let datetime_old = time::OffsetDateTime::from_unix_timestamp(timestamp)?;
 
-        let datetime_jiff =
-            jiff::Timestamp::from_second(timestamp)?.to_zoned(jiff::tz::TimeZone::UTC);
-
-        (datetime_old, datetime_jiff)
+        jiff::Timestamp::from_second(timestamp)?.to_zoned(jiff::tz::TimeZone::UTC)
     };
     let compute_start_time = None; // compute time is unpredictable, cannot fake end duration
 
