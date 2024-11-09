@@ -687,11 +687,18 @@ impl From<&str> for PoolStatusDescription {
             "\n",
             "corruption.  Applications may be affected"
         );
-        const FEATURES_AVAILABLE: &str = concat!(
-            "Some supported and requested features are not enabled on the pool.",
-            "\n",
-            "The pool can still be used, but some features are unavailable.",
-        );
+        const FEATURES_AVAILABLE: &[&str] = &[
+            concat!(
+                "Some supported and requested features are not enabled on the pool.",
+                "\n",
+                "The pool can still be used, but some features are unavailable.",
+            ),
+            concat!(
+                "Some supported features are not enabled on the pool. The pool can",
+                "\n",
+                "still be used, but some features are unavailable.",
+            ),
+        ];
         const DEVICE_REMOVED: &str = concat!(
             "One or more devices has been removed by the administrator.",
             "\n",
@@ -703,7 +710,10 @@ impl From<&str> for PoolStatusDescription {
             Self::SufficientReplicasForMissing
         } else if pool_status.starts_with(DATA_CORRUPTION) {
             Self::DataCorruption
-        } else if pool_status.starts_with(FEATURES_AVAILABLE) {
+        } else if FEATURES_AVAILABLE
+            .iter()
+            .any(|pattern| pool_status.starts_with(pattern))
+        {
             Self::FeaturesAvailable
         } else if pool_status.starts_with(DEVICE_REMOVED) {
             Self::DeviceRemoved

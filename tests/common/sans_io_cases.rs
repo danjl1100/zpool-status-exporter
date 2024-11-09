@@ -69,4 +69,5 @@ test_cases! {
     case05 {05-features}
     case06 {06-removed}
     case07 {07-unavail}
+    case08 {08-features-alt}
 }
