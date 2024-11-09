@@ -3,8 +3,7 @@
 // Auth prefix clarifies types for parent module
 #![allow(clippy::module_name_repetitions)]
 
-use anyhow::Context;
-use base64::Engine;
+pub(crate) use file::Error as FileError;
 use std::sync::OnceLock;
 
 static HEADER_AUTHORIZATION: OnceLock<tiny_http::HeaderField> = OnceLock::new();
@@ -29,91 +28,171 @@ pub(crate) fn get_header_www_authenticate() -> tiny_http::Header {
 pub(crate) struct AuthRules {
     entries_sorted: Box<[String]>,
 }
-impl AuthRules {
-    /// Attempt to construct rules from a plaintext file
-    ///
-    /// # Errors
-    /// Returns an error if the file IO fails
-    pub fn from_file(file: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let file = file.as_ref();
-        {
-            let content = std::fs::read_to_string(file)?;
+mod file {
+    use super::AuthRules;
+
+    impl AuthRules {
+        /// Attempt to construct rules from a plaintext file
+        ///
+        /// # Errors
+        /// Returns an error if the file IO fails
+        pub fn from_file(file: impl AsRef<std::path::Path>) -> Result<Self, Error> {
+            let file = file.as_ref();
+            let make_error = |kind| Error {
+                file: file.to_owned(),
+                kind,
+            };
+
+            let content = std::fs::read_to_string(file)
+                .map_err(ErrorKind::IO)
+                .map_err(make_error)?;
             let lines = content.lines().map(String::from);
-            Self::from_entries(lines).ok_or(anyhow::anyhow!("no entries found"))
+            Self::from_entries(lines)
+                .ok_or(ErrorKind::NoEntries)
+                .map_err(make_error)
         }
-        .with_context(|| format!("auth rules file {}", file.display()))
+        /// Constructs rules from the specified entries
+        ///
+        /// Returns `None` if no entries are specified
+        pub fn from_entries(entries: impl Iterator<Item = String>) -> Option<Self> {
+            let entries_sorted = {
+                let mut entries: Vec<_> = entries.collect();
+                entries.sort();
+                entries.into_boxed_slice()
+            };
+            (!entries_sorted.is_empty()).then_some(Self { entries_sorted })
+        }
     }
-    /// Constructs rules from the specified entries
-    ///
-    /// Returns `None` if no entries are specified
-    pub fn from_entries(entries: impl Iterator<Item = String>) -> Option<Self> {
-        let entries_sorted = {
-            let mut entries: Vec<_> = entries.collect();
-            entries.sort();
-            entries.into_boxed_slice()
-        };
-        (!entries_sorted.is_empty()).then_some(Self { entries_sorted })
+    #[derive(Debug)]
+    pub(crate) struct Error {
+        file: std::path::PathBuf,
+        kind: ErrorKind,
     }
-    /// Prints startup message(s) to stdout
-    pub fn print_start_message(&self) {
-        let count = self.entries_sorted.len();
-        println!("Allow-list configured with {count} entries");
-        println!("!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!");
+    #[derive(Debug)]
+    enum ErrorKind {
+        IO(std::io::Error),
+        NoEntries,
     }
-    /// Evalutes the request against the rules
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the "Authorization" header is present, but does not contain a valid
-    /// UTF-8 authentication string
-    pub(super) fn query(
-        &self,
-        request: &tiny_http::Request,
-    ) -> Result<AuthResult, InvalidHeaderError> {
-        let header_authorization = get_header_authorization();
-        let Some(auth_value) = request
-            .headers()
-            .iter()
-            .find(|header| header.field == *header_authorization)
-            .map(|header| header.value.clone())
-        else {
-            return Ok(AuthResult::MissingAuthHeader);
-        };
-
-        let auth_str = parse_authorization_value(auth_value.as_str())
-            .map_err(|InvalidHeaderError(err)| err.context("parsing authorization header"))
-            .map_err(InvalidHeaderError)?;
-
-        if self.entries_sorted.binary_search(&auth_str).is_ok() {
-            Ok(AuthResult::Accept)
-        } else {
-            let who = DebugUserString::from(auth_str);
-
-            Ok(AuthResult::Deny(who))
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::IO(error) => Some(error),
+                ErrorKind::NoEntries => None,
+            }
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { file, kind } = self;
+            let description = match kind {
+                ErrorKind::IO(_error) => "failed to read",
+                ErrorKind::NoEntries => "no entries in",
+            };
+            write!(f, "{description} file {}", file.display())
         }
     }
 }
 
-fn parse_authorization_value(auth_value: &str) -> Result<String, InvalidHeaderError> {
-    let auth_base64 = auth_value
-        .strip_prefix("Basic ")
-        .ok_or_else(|| anyhow::anyhow!("missing Basic"))
-        .map_err(InvalidHeaderError)?;
+mod header {
+    use super::{get_header_authorization, AuthResult, AuthRules, DebugUserString};
+    use base64::Engine;
 
-    let auth_bytes = base64::prelude::BASE64_STANDARD
-        .decode(auth_base64)
-        .context("base64 decode")
-        .map_err(InvalidHeaderError)?;
+    impl AuthRules {
+        /// Prints startup message(s) to stdout
+        pub fn print_start_message(&self) {
+            let count = self.entries_sorted.len();
+            println!("Allow-list configured with {count} entries");
+            println!("!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!");
+        }
+        /// Evalutes the request against the rules
+        ///
+        /// # Errors
+        ///
+        /// Returns an error when the "Authorization" header is present, but does not contain a valid
+        /// UTF-8 authentication string
+        pub(crate) fn query(&self, request: &tiny_http::Request) -> Result<AuthResult, Error> {
+            let header_authorization = get_header_authorization();
+            let Some(auth_value) = request
+                .headers()
+                .iter()
+                .find(|header| header.field == *header_authorization)
+                .map(|header| header.value.clone())
+            else {
+                return Ok(AuthResult::MissingAuthHeader);
+            };
 
-    let auth_str = String::from_utf8(auth_bytes)
-        .context("invalid UTF8")
-        .map_err(InvalidHeaderError)?;
+            let auth_str = parse_authorization_value(auth_value.as_str())?;
 
-    Ok(auth_str)
+            if self.entries_sorted.binary_search(&auth_str).is_ok() {
+                Ok(AuthResult::Accept)
+            } else {
+                let who = DebugUserString::from(auth_str);
+
+                Ok(AuthResult::Deny(who))
+            }
+        }
+    }
+
+    fn parse_authorization_value(auth_value: &str) -> Result<String, Error> {
+        const BASIC_PREFIX: &str = "Basic ";
+
+        let make_error = |kind| Error {
+            auth_value: auth_value.to_owned().into(),
+            kind,
+        };
+
+        let auth_base64 = auth_value
+            .strip_prefix(BASIC_PREFIX)
+            .ok_or(ErrorKind::MissingBasic)
+            .map_err(make_error)?;
+
+        let auth_bytes = base64::prelude::BASE64_STANDARD
+            .decode(auth_base64)
+            .map_err(ErrorKind::Base64)
+            .map_err(make_error)?;
+
+        let auth_str = String::from_utf8(auth_bytes)
+            .map_err(ErrorKind::Utf8)
+            .map_err(make_error)?;
+
+        Ok(auth_str)
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct Error {
+        auth_value: DebugUserString,
+        kind: ErrorKind,
+    }
+    #[derive(Debug)]
+    enum ErrorKind {
+        MissingBasic,
+        Base64(base64::DecodeError),
+        Utf8(std::string::FromUtf8Error),
+    }
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::MissingBasic => None,
+                ErrorKind::Base64(error) => Some(error),
+                ErrorKind::Utf8(error) => Some(error),
+            }
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { auth_value, kind } = self;
+            let description = match kind {
+                ErrorKind::MissingBasic => "missing basic-authentication prefix",
+                ErrorKind::Base64(_error) => "invalid base64",
+                ErrorKind::Utf8(_error) => "non-UTF8 string",
+            };
+            write!(
+                f,
+                "{description} in authorization header value: {auth_value:?}"
+            )
+        }
+    }
 }
-
-/// Lazy guarantee that the failure mode is specific to invalid headers
-pub(super) struct InvalidHeaderError(pub anyhow::Error);
 
 /// Result of parsing a request
 #[must_use]

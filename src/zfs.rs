@@ -10,9 +10,7 @@
 //! Therefore, errors are only returned when the input does not match the expected format.
 //! This is a signal that a major format change happened (e.g. requiring updates to this library).
 
-use crate::AppContext;
-use anyhow::Context as _;
-use std::str::FromStr;
+pub use main::Error as ParseError;
 
 #[allow(missing_docs)]
 pub(crate) struct PoolMetrics {
@@ -92,7 +90,7 @@ pub(super) struct DeviceMetrics {
     pub errors_checksum: u32,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 enum ZpoolStatusSection {
     #[default]
     Header,
@@ -100,109 +98,193 @@ enum ZpoolStatusSection {
     Devices,
 }
 
-impl AppContext {
-    /// Extracts discrete metrics from the provided output string (expects `zpool status` format)
-    ///
-    /// # Errors
-    /// Returns an error if the string contains a line that does not match the expected format
-    /// (e.g. header line "foobar: ...", or non-numeric error counters in devices list)
-    ///
-    /// # Notes
-    ///
-    /// - Any unknown string within the format will be accepted and represented as `Unrecognized`
-    ///     (e.g. unknown error message, unknown scan status)
-    ///
-    /// - Any missing line within the format will result in `None` in the returned struct
-    ///     (e.g. no "errors: ..." line or no "scan: ..." line)
-    ///
-    pub(crate) fn parse_zfs_metrics(&self, zpool_output: &str) -> anyhow::Result<Vec<PoolMetrics>> {
-        let mut pools = vec![];
-        // disambiguate from header sections and devices (which may contain COLON)
-        let mut current_section = ZpoolStatusSection::default();
-        let mut lines = zpool_output.lines().peekable();
-        while let Some(line) = lines.next() {
-            // NOTE allocation required for "greedy line append" case in Header
-            let mut line = line.to_owned();
-            match current_section {
-                ZpoolStatusSection::Header => {
-                    {
-                        // detect line continuations and concatenate
-                        while let Some(next_line) = lines.peek() {
-                            if let Some(continuation) = next_line.strip_prefix('\t') {
-                                line += "\n";
-                                line += continuation;
-                                lines.next();
-                            } else {
-                                break;
+mod main {
+    use super::{device_metrics, metrics_line_header, PoolMetrics, ZpoolStatusSection};
+    use crate::AppContext;
+
+    impl AppContext {
+        /// Extracts discrete metrics from the provided output string (expects `zpool status` format)
+        ///
+        /// # Errors
+        /// Returns an error if the string contains a line that does not match the expected format
+        /// (e.g. header line "foobar: ...", or non-numeric error counters in devices list)
+        ///
+        /// # Notes
+        ///
+        /// - Any unknown string within the format will be accepted and represented as `Unrecognized`
+        ///     (e.g. unknown error message, unknown scan status)
+        ///
+        /// - Any missing line within the format will result in `None` in the returned struct
+        ///     (e.g. no "errors: ..." line or no "scan: ..." line)
+        ///
+        pub(crate) fn parse_zfs_metrics(
+            &self,
+            zpool_output: &str,
+        ) -> Result<Vec<PoolMetrics>, Error> {
+            let mut pools = vec![];
+            // disambiguate from header sections and devices (which may contain COLON)
+            let mut current_section = ZpoolStatusSection::default();
+            let mut lines = zpool_output.lines().enumerate().peekable();
+            while let Some((line_index, line)) = lines.next() {
+                // NOTE allocation required for "greedy line append" case in Header
+                // TODO: Cow? to delay allocation until the continuation actually happens
+                let make_error = |kind| Error {
+                    line: line.to_owned(),
+                    line_number: line_index + 1,
+                    kind,
+                };
+                let mut line = line.to_owned();
+                match current_section {
+                    ZpoolStatusSection::Header => {
+                        {
+                            // detect line continuations and concatenate
+                            while let Some((_index, next_line)) = lines.peek() {
+                                if let Some(continuation) = next_line.strip_prefix('\t') {
+                                    line += "\n";
+                                    line += continuation;
+                                    lines.next();
+                                } else {
+                                    break;
+                                }
                             }
                         }
+                        if let Some((label, content)) = line.split_once(':') {
+                            let label = label.trim();
+                            let content = content.trim();
+                            if label == "pool" {
+                                let name = content.to_string();
+                                pools.push(PoolMetrics::new(name));
+                                Ok(())
+                            } else if let Some(pool) = pools.last_mut() {
+                                let header_result = pool.add_line_header(label, content, self);
+
+                                if let Ok(Some(next_section)) = &header_result {
+                                    current_section = *next_section;
+                                }
+                                Ok(header_result
+                                    .map(|_| ())
+                                    .map_err(ErrorKind::MetricsLineHeader)
+                                    .map_err(make_error)?)
+                            } else {
+                                Err(make_error(ErrorKind::HeaderBeforePool {
+                                    label: label.to_owned(),
+                                }))
+                            }
+                        } else if line.trim().is_empty() {
+                            // ignore empty line
+                            Ok(())
+                        } else if line == "no pools available" {
+                            // ignore marker for "no output"
+                            Ok(())
+                        } else if line.starts_with("/dev/zfs and /proc/self/mounts") {
+                            Err(make_error(ErrorKind::NeedsZfsDeviceMounts))
+                        } else {
+                            Err(make_error(ErrorKind::UnknownHeader))
+                        }
                     }
-                    if let Some((label, content)) = line.split_once(':') {
-                        let label = label.trim();
-                        let content = content.trim();
-                        if label == "pool" {
-                            let name = content.to_string();
-                            pools.push(PoolMetrics::new(name));
+                    ZpoolStatusSection::BlankBeforeDevices => {
+                        if line.trim().is_empty() {
+                            if let Some((_index, next_line)) = lines.peek() {
+                                if next_line.starts_with("\tNAME ") {
+                                    lines.next();
+                                    current_section = ZpoolStatusSection::Devices;
+                                    Ok(())
+                                } else {
+                                    Err(make_error(ErrorKind::InvalidDeviceTableLabels))
+                                }
+                            } else {
+                                Err(make_error(ErrorKind::MissingDeviceTableLabels))
+                            }
+                        } else {
+                            Err(make_error(ErrorKind::MissingBlankForDevices))
+                        }
+                    }
+                    ZpoolStatusSection::Devices => {
+                        let is_table_row = line.starts_with('\t');
+                        let is_empty = line.trim().is_empty();
+                        if !is_table_row || is_empty {
+                            if !is_empty {
+                                eprintln!("ignoring line interrupting devices table: {line:?}");
+                            }
+
+                            // end of section - not starting with tab
+                            // back to headers
+                            current_section = ZpoolStatusSection::Header;
                             Ok(())
                         } else if let Some(pool) = pools.last_mut() {
-                            let header_result = pool.parse_line_header(label, content, self);
-
-                            if let Ok(Some(next_section)) = &header_result {
-                                current_section = *next_section;
-                            }
-                            header_result.map(|_| ())
+                            Ok(pool
+                                .parse_line_device(&line)
+                                .map_err(ErrorKind::DeviceMetrics)
+                                .map_err(make_error)?)
                         } else {
-                            Err(anyhow::anyhow!("missing pool specifier, found header line"))
+                            unreachable!(
+                                "{current_section:?} should not be active while `pools` is empty"
+                            )
                         }
-                    } else if line.trim().is_empty() {
-                        // ignore empty line
-                        Ok(())
-                    } else if line == "no pools available" {
-                        // ignore marker for "no output"
-                        Ok(())
-                    } else if line.starts_with("/dev/zfs and /proc/self/mounts") {
-                        Err(anyhow::anyhow!(
-                            "zpool requires access to /dev/zfs and /proc/self/mounts"
-                        ))
-                    } else {
-                        Err(anyhow::anyhow!("unknown line in header"))
                     }
-                }
-                ZpoolStatusSection::BlankBeforeDevices => {
-                    if line.trim().is_empty() {
-                        if let Some(next_line) = lines.peek() {
-                            if next_line.starts_with("\tNAME ") {
-                                lines.next();
-                                current_section = ZpoolStatusSection::Devices;
-                                Ok(())
-                            } else {
-                                Err(anyhow::anyhow!(
-                                    "expected device table labels, found: {next_line:?}"
-                                ))
-                            }
-                        } else {
-                            Err(anyhow::anyhow!("missing line for device table labels"))
-                        }
-                    } else {
-                        Err(anyhow::anyhow!("expected blank line before devices"))
-                    }
-                }
-                ZpoolStatusSection::Devices => {
-                    if !line.starts_with('\t') || line.trim().is_empty() {
-                        // end of section - not starting with tab
-                        // back to headers
-                        current_section = ZpoolStatusSection::Header;
-                        Ok(())
-                    } else if let Some(pool) = pools.last_mut() {
-                        pool.parse_line_device(&line)
-                    } else {
-                        Err(anyhow::anyhow!("missing pool specifier"))
-                    }
-                }
+                }?;
             }
-            .with_context(|| format!("on zpool-status output line: {line:?}"))?;
+            Ok(pools)
         }
-        Ok(pools)
+    }
+
+    /// Error parsing the output from the `zpool status` command
+    #[derive(Debug)]
+    pub struct Error {
+        line: String,
+        line_number: usize,
+        kind: ErrorKind,
+    }
+    #[derive(Debug)]
+    enum ErrorKind {
+        MetricsLineHeader(metrics_line_header::Error),
+        DeviceMetrics(device_metrics::Error),
+        HeaderBeforePool { label: String },
+        NeedsZfsDeviceMounts,
+        UnknownHeader,
+        InvalidDeviceTableLabels,
+        MissingDeviceTableLabels,
+        MissingBlankForDevices,
+    }
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::MetricsLineHeader(error) => Some(error),
+                ErrorKind::DeviceMetrics(error) => Some(error),
+                ErrorKind::HeaderBeforePool { label: _ }
+                | ErrorKind::NeedsZfsDeviceMounts
+                | ErrorKind::UnknownHeader
+                | ErrorKind::InvalidDeviceTableLabels
+                | ErrorKind::MissingDeviceTableLabels
+                | ErrorKind::MissingBlankForDevices => None,
+            }
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self {
+                line,
+                line_number,
+                kind,
+            } = self;
+            match kind {
+                ErrorKind::MetricsLineHeader(_error) => write!(f, "unexpected metrics header"),
+                ErrorKind::DeviceMetrics(_error) => write!(f, "unexpected device metrics"),
+                ErrorKind::HeaderBeforePool { label } => {
+                    write!(f, "unexpected header {label:?} before pool label")
+                }
+                ErrorKind::NeedsZfsDeviceMounts => {
+                    write!(f, "zpool requires access to /dev/zfs and /proc/self/mounts")
+                }
+                ErrorKind::UnknownHeader => write!(f, "unknown header"),
+                ErrorKind::InvalidDeviceTableLabels => {
+                    write!(f, "invalid device table labels")
+                }
+                ErrorKind::MissingDeviceTableLabels => write!(f, "missing device table labels"),
+                ErrorKind::MissingBlankForDevices => write!(f, "expect blank line before devices"),
+            }?;
+            write!(f, " on zpool-status output line {line_number}: {line:?}")
+        }
     }
 }
 
@@ -217,167 +299,337 @@ impl PoolMetrics {
             error: None,
         }
     }
-    // NOTE: reference the openzfs source for possible formatting changes
-    // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/cmd/zpool/zpool_main.c>
-    fn parse_line_header(
-        &mut self,
-        label: &str,
-        content: &str,
-        app_context: &AppContext,
-    ) -> anyhow::Result<Option<ZpoolStatusSection>> {
-        fn err_if_previous<T>(
-            (label, content): (&str, &str),
-            previous: Option<impl std::fmt::Debug>,
-        ) -> anyhow::Result<Option<T>> {
-            if let Some(previous) = previous {
-                Err(anyhow::anyhow!(
-                    "duplicate {label}: {previous:?} and {content:?}"
-                ))
-            } else {
-                Ok(None)
-            }
-        }
-        match label {
-            "status" => {
-                // status - a short description of the state
-                let new_pool_status = content.into();
-                err_if_previous((label, content), self.pool_status.replace(new_pool_status))
-            }
-            "state" => {
-                // state - single token, e.g. DEGRADED, ONLINE
-                let new_state = content.into();
-                err_if_previous((label, content), self.state.replace(new_state))
-            }
-            "scan" => {
-                let new_scan_status = app_context.parse_scan_content(content)?;
-                err_if_previous((label, content), self.scan_status.replace(new_scan_status))
-            }
-            "config" => {
-                // signals empty line prior to devices table
-                if content.is_empty() {
-                    // ignore content
-                    Ok(Some(ZpoolStatusSection::BlankBeforeDevices))
-                } else {
-                    Err(anyhow::anyhow!(
-                        "expected empty content for label {label}, found: {content:?}"
-                    ))
-                }
-            }
-            "errors" => {
-                let new_error = content.into();
-                err_if_previous((label, content), self.error.replace(new_error))
-            }
-            "action" | "see" => {
-                // ignore (no metrics)
-                Ok(None)
-            }
-            unknown => Err(anyhow::anyhow!("unknown label: {unknown:?}")),
-        }
-    }
-    fn parse_line_device(&mut self, line: &str) -> anyhow::Result<()> {
+    fn parse_line_device(&mut self, line: &str) -> Result<(), device_metrics::Error> {
         let device = line.parse()?;
         self.devices.push(device);
         Ok(())
     }
 }
-impl AppContext {
-    fn parse_scan_content(&self, content: &str) -> anyhow::Result<(ScanStatus, jiff::Zoned)> {
-        const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
 
-        // remove extra lines - status is only on first line
-        let (content, _extra_lines) = content.split_once('\n').unwrap_or((content, ""));
-
-        // extract message and timestamp strings
-        let Some((message, timestamp)) = TIME_SEPARATORS
-            .iter()
-            .find_map(|sep| content.split_once(sep))
-        else {
-            anyhow::bail!("missing timestamp separator token")
-        };
-
-        // parse message
-        let scan_status = ScanStatus::from(message);
-
-        // parse timestamp
-        let timestamp = self
-            .parse_timestamp(timestamp)
-            .with_context(|| format!("timestamp string {timestamp:?}"))?;
-
-        Ok((scan_status, timestamp))
+mod metrics_line_header {
+    use super::{PoolMetrics, ZpoolStatusSection};
+    use crate::AppContext;
+    impl PoolMetrics {
+        // NOTE: reference the openzfs source for possible formatting changes
+        // <https://github.com/openzfs/zfs/blob/6dccdf501ea47bb8a45f00e4904d26efcb917ad4/cmd/zpool/zpool_main.c>
+        pub(super) fn add_line_header(
+            &mut self,
+            label: &str,
+            content: &str,
+            app_context: &AppContext,
+        ) -> Result<Option<ZpoolStatusSection>, Error> {
+            fn err_if_previous<T>(
+                previous: Option<impl std::fmt::Debug + 'static>,
+            ) -> Result<Option<T>, ErrorKind> {
+                if let Some(previous) = previous {
+                    Err(ErrorKind::DuplicateEntry {
+                        previous: format!("{previous:?}"),
+                    })
+                } else {
+                    Ok(None)
+                }
+            }
+            let make_error = |kind| Error {
+                label: label.to_owned(),
+                content: content.to_owned(),
+                kind,
+            };
+            match label {
+                "status" => {
+                    // status - a short description of the state
+                    let new_pool_status = content.into();
+                    err_if_previous(self.pool_status.replace(new_pool_status)).map_err(make_error)
+                }
+                "state" => {
+                    // state - single token, e.g. DEGRADED, ONLINE
+                    let new_state = content.into();
+                    err_if_previous(self.state.replace(new_state)).map_err(make_error)
+                }
+                "scan" => {
+                    let new_scan_status = app_context
+                        .parse_scan_content(content)
+                        .map_err(ErrorKind::ScanContent)
+                        .map_err(make_error)?;
+                    err_if_previous(self.scan_status.replace(new_scan_status)).map_err(make_error)
+                }
+                "config" => {
+                    // signals empty line prior to devices table
+                    if content.is_empty() {
+                        // ignore content
+                        Ok(Some(ZpoolStatusSection::BlankBeforeDevices))
+                    } else {
+                        Err(make_error(ErrorKind::ExpectedEmpty))
+                    }
+                }
+                "errors" => {
+                    let new_error = content.into();
+                    err_if_previous(self.error.replace(new_error)).map_err(make_error)
+                }
+                "action" | "see" => {
+                    // ignore (no metrics)
+                    Ok(None)
+                }
+                _ => Err(make_error(ErrorKind::UnknownLabel)),
+            }
+        }
     }
-    /// Parse a timestamp of this format from zpool status: "Sun Oct 27 15:14:51 2024"
-    fn parse_timestamp(&self, timestamp: &str) -> anyhow::Result<jiff::Zoned> {
-        let format = "%a %b %d %T %Y";
-        let timestamp = jiff::fmt::strtime::BrokenDownTime::parse(format, timestamp)?
-            .to_datetime()?
-            .to_zoned(self.timezone.clone())?;
-        Ok(timestamp)
+
+    #[derive(Debug)]
+    pub(super) struct Error {
+        label: String,
+        content: String,
+        kind: ErrorKind,
+    }
+    #[derive(Debug)]
+    enum ErrorKind {
+        DuplicateEntry { previous: String },
+        ScanContent(super::scan_content::Error),
+        ExpectedEmpty,
+        UnknownLabel,
+    }
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::DuplicateEntry { .. }
+                | ErrorKind::ExpectedEmpty { .. }
+                | ErrorKind::UnknownLabel => None,
+                ErrorKind::ScanContent(err) => Some(err),
+            }
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self {
+                label,
+                content,
+                kind,
+            } = self;
+            match kind {
+                ErrorKind::DuplicateEntry { previous } => {
+                    write!(f, "duplicate {label}: {previous:?} and {content:?}")
+                }
+                ErrorKind::ScanContent(_) => write!(f, "invalid {label} content {content:?}"),
+                ErrorKind::ExpectedEmpty => {
+                    write!(f, "expected empty line for {label}, found {content:?}")
+                }
+                ErrorKind::UnknownLabel => {
+                    write!(f, "unknown label {label:?} with content {content:?}")
+                }
+            }
+        }
     }
 }
 
-impl FromStr for DeviceMetrics {
-    type Err = anyhow::Error;
-    fn from_str(line: &str) -> anyhow::Result<Self> {
-        // `zpool status` currently uses 2 spaces for each level of indentation
-        const DEPTH_MULTIPLE: usize = 2;
+mod scan_content {
+    use crate::{zfs::ScanStatus, AppContext};
 
-        let Some(("", line)) = line.split_once('\t') else {
-            anyhow::bail!("malformed device line: {line:?}")
-        };
-        let (depth, line) = {
-            let mut chars = line.chars();
-            let mut depth_chars = 0;
-            while let Some(' ') = chars.next() {
-                depth_chars += 1;
+    const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
+
+    impl AppContext {
+        pub(super) fn parse_scan_content(
+            &self,
+            content: &str,
+        ) -> Result<(ScanStatus, jiff::Zoned), Error> {
+            // remove extra lines - status is only on first line
+            let (content, _extra_lines) = content.split_once('\n').unwrap_or((content, ""));
+
+            let make_error = |kind| Error {
+                // scan_content: content.to_owned(),
+                kind,
+            };
+
+            // extract message and timestamp strings
+            let (message, timestamp) = TIME_SEPARATORS
+                .iter()
+                .find_map(|sep| content.split_once(sep))
+                .ok_or(ErrorKind::MissingTimestampSeparator)
+                .map_err(make_error)?;
+
+            // parse message
+            let scan_status = ScanStatus::from(message);
+
+            // parse timestamp
+            let timestamp = self
+                .parse_timestamp(timestamp)
+                .map_err(|err| {
+                    let timestamp = timestamp.to_owned();
+                    ErrorKind::ParseTimestamp { timestamp, err }
+                })
+                .map_err(make_error)?;
+
+            Ok((scan_status, timestamp))
+        }
+        /// Parse a timestamp of this format from zpool status: "Sun Oct 27 15:14:51 2024"
+        fn parse_timestamp(&self, timestamp: &str) -> Result<jiff::Zoned, jiff::Error> {
+            let format = "%a %b %d %T %Y";
+            let timestamp = jiff::fmt::strtime::BrokenDownTime::parse(format, timestamp)?
+                .to_datetime()?
+                .to_zoned(self.timezone.clone())?;
+            Ok(timestamp)
+        }
+    }
+
+    #[derive(Debug)]
+    pub(super) struct Error {
+        // scan_content: String,
+        kind: ErrorKind,
+    }
+    #[derive(Debug)]
+    enum ErrorKind {
+        MissingTimestampSeparator,
+        ParseTimestamp { timestamp: String, err: jiff::Error },
+    }
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::MissingTimestampSeparator => None,
+                ErrorKind::ParseTimestamp { err, .. } => Some(err),
             }
-            // NOTE byte indexing via count of chars works because space (' ') is ascii
-            let line = &line[depth_chars..];
-            let depth = depth_chars / DEPTH_MULTIPLE;
-            (depth, line)
-        };
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { kind } = self;
+            match kind {
+                ErrorKind::MissingTimestampSeparator => {
+                    write!(
+                        f,
+                        "expected timestamp separator token (one of {TIME_SEPARATORS:?})"
+                    )
+                }
+                ErrorKind::ParseTimestamp { timestamp, err: _ } => {
+                    write!(f, "invalid timestamp {timestamp:?}")
+                }
+            }
+            // write!(f, " in scan content {scan_content:?}")
+        }
+    }
+}
 
-        // FIXME - Major assumption: device names will *NOT* have spaces
+mod device_metrics {
+    use super::DeviceMetrics;
+    use crate::zfs::DeviceStatus;
+    use std::str::FromStr;
 
-        let mut cells = line.split_whitespace();
-        let Some(name) = cells.next().map(String::from) else {
-            anyhow::bail!("missing device name")
-        };
-        let Some(state) = cells.next().map(DeviceStatus::from) else {
-            anyhow::bail!("missing state for device {name:?}")
-        };
-        let Some(errors_read) = cells
-            .next()
-            .map(str::parse)
-            .transpose()
-            .context("read counter")?
-        else {
-            anyhow::bail!("missing read errors count for device {name:?}")
-        };
-        let Some(errors_write) = cells
-            .next()
-            .map(str::parse)
-            .transpose()
-            .context("write counter")?
-        else {
-            anyhow::bail!("missing write errors count for device {name:?}")
-        };
-        let Some(errors_checksum) = cells
-            .next()
-            .map(str::parse)
-            .transpose()
-            .context("checksum counter")?
-        else {
-            anyhow::bail!("missing checksum errors count for device {name:?}")
-        };
+    impl FromStr for DeviceMetrics {
+        type Err = Error;
+        fn from_str(line: &str) -> Result<Self, Error> {
+            // `zpool status` currently uses 2 spaces for each level of indentation
+            const DEPTH_MULTIPLE: usize = 2;
 
-        Ok(Self {
-            depth,
-            name,
-            state,
-            errors_read,
-            errors_write,
-            errors_checksum,
-        })
+            let make_error = |kind| Error {
+                device_name: None,
+                kind,
+            };
+
+            let (before_tab, line) = line
+                .split_once('\t')
+                .ok_or(ErrorKind::MissingLeadingWhitespace)
+                .map_err(make_error)?;
+            if !before_tab.is_empty() {
+                return Err(make_error(ErrorKind::InvalidLeadingWhitespace));
+            }
+
+            let (depth, line) = {
+                let mut chars = line.chars();
+                let mut depth_chars = 0;
+                while let Some(' ') = chars.next() {
+                    depth_chars += 1;
+                }
+                // NOTE byte indexing via count of chars only works because space (' ') is ascii
+                let line = &line[depth_chars..];
+                let depth = depth_chars / DEPTH_MULTIPLE;
+                (depth, line)
+            };
+
+            // FIXME - Major assumption: device names will *NOT* have spaces
+
+            let mut cells = line.split_whitespace();
+            let name = cells
+                .next()
+                .map(String::from)
+                .ok_or(ErrorKind::MissingName)
+                .map_err(make_error)?;
+
+            let make_error = |kind| Error {
+                device_name: Some(name.clone()),
+                kind,
+            };
+            let parse_count = |cell: Option<&str>, kind_if_missing| {
+                cell.ok_or(kind_if_missing)
+                    .and_then(|cell| cell.parse().map_err(ErrorKind::InvalidCount))
+                    .map_err(make_error)
+            };
+
+            let state = cells
+                .next()
+                .map(DeviceStatus::from)
+                .ok_or(ErrorKind::MissingState)
+                .map_err(make_error)?;
+            let errors_read = parse_count(cells.next(), ErrorKind::MissingReadErrorCount)?;
+            let errors_write = parse_count(cells.next(), ErrorKind::MissingWriteErrorCount)?;
+            let errors_checksum = parse_count(cells.next(), ErrorKind::MissingChecksumErrorCount)?;
+
+            Ok(Self {
+                depth,
+                name,
+                state,
+                errors_read,
+                errors_write,
+                errors_checksum,
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct Error {
+        device_name: Option<String>,
+        kind: ErrorKind,
+    }
+    #[derive(Debug)]
+    enum ErrorKind {
+        MissingLeadingWhitespace,
+        MissingName,
+        MissingState,
+        MissingReadErrorCount,
+        MissingWriteErrorCount,
+        MissingChecksumErrorCount,
+        InvalidLeadingWhitespace,
+        InvalidCount(std::num::ParseIntError),
+    }
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                ErrorKind::MissingLeadingWhitespace
+                | ErrorKind::MissingName
+                | ErrorKind::MissingState
+                | ErrorKind::MissingReadErrorCount
+                | ErrorKind::MissingWriteErrorCount
+                | ErrorKind::MissingChecksumErrorCount
+                | ErrorKind::InvalidLeadingWhitespace => None,
+                ErrorKind::InvalidCount(err) => Some(err),
+            }
+        }
+    }
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { device_name, kind } = self;
+            let description = match kind {
+                ErrorKind::MissingLeadingWhitespace => "expected leading table whitespace",
+                ErrorKind::MissingName => "expected device name",
+                ErrorKind::MissingState => "expected device state",
+                ErrorKind::MissingReadErrorCount => "expected read error count",
+                ErrorKind::MissingWriteErrorCount => "expected write error count",
+                ErrorKind::MissingChecksumErrorCount => "expected checksum error count",
+                ErrorKind::InvalidLeadingWhitespace => "invalid leading whitespace in table",
+                ErrorKind::InvalidCount(_) => "invalid count",
+            };
+            if let Some(device_name) = device_name {
+                write!(f, "{description} for device {device_name:?}")
+            } else {
+                write!(f, "{description}")
+            }
+        }
     }
 }
 

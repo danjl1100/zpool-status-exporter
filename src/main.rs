@@ -16,10 +16,27 @@
 
 use clap::Parser as _;
 
+/// Command-line arguments for the server
+#[derive(clap::Parser)]
+#[clap(version)]
+struct Args {
+    /// Bind address for the server
+    #[clap(env)]
+    listen_address: std::net::SocketAddr,
+    /// Filename containing allowed basic authentication tokens
+    #[clap(env)]
+    #[arg(long)]
+    basic_auth_keys_file: Option<std::path::PathBuf>,
+}
+
 fn main() -> anyhow::Result<()> {
+    if nix::unistd::Uid::effective().is_root() {
+        anyhow::bail!("refusing to run as super-user, try a non-privileged user");
+    }
+
     let mut app_context = zpool_status_exporter::AppContext::new();
     {
-        let cmd = <zpool_status_exporter::Args as clap::CommandFactory>::command();
+        let cmd = <Args as clap::CommandFactory>::command();
         let app_version = cmd.get_version();
         app_context.set_app_version(app_version);
     }
@@ -31,10 +48,6 @@ fn main() -> anyhow::Result<()> {
             .send(zpool_status_exporter::Shutdown)
             .expect("termination channel send failed");
     })?;
-
-    if nix::unistd::Uid::effective().is_root() {
-        anyhow::bail!("refusing to run as super-user, try a non-privileged user");
-    }
 
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -51,12 +64,18 @@ fn main() -> anyhow::Result<()> {
         println!("{metrics}");
         Ok(())
     } else {
-        let args = zpool_status_exporter::Args::parse();
+        let Args {
+            listen_address,
+            basic_auth_keys_file,
+        } = Args::parse();
+        let args =
+            zpool_status_exporter::Args::listen_basic_auth(listen_address, basic_auth_keys_file);
         app_context
             .server_builder(&args)
             .set_ready_sender(ready_tx)
             .set_shutdown_receiver(shutdown_rx)
-            .serve()
+            .serve()?;
+        Ok(())
     }
 }
 

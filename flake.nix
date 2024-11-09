@@ -104,6 +104,7 @@
               pkgs.bacon
               pkgs.cargo-expand
               pkgs.cargo-outdated
+              pkgs.cargo-insta
             ];
           };
         };

@@ -27,10 +27,12 @@ fn run_test(full_input: &str) -> anyhow::Result<String> {
     };
     let compute_start_time = None; // compute time is unpredictable, cannot fake end duration
 
-    zpool_status_exporter::AppContext::new_assume_local_is_utc()
+    let metrics = zpool_status_exporter::AppContext::new_assume_local_is_utc()
         .timestamp_at_unix_utc(timestamp, compute_start_time)
         .ok_or_else(|| anyhow::anyhow!("invalid timestamp {timestamp} in input"))?
-        .get_metrics_for_output(input)
+        .get_metrics_for_output(input)?;
+
+    Ok(metrics)
 }
 
 fn test_case(input: &str, expected: &str) -> anyhow::Result<()> {

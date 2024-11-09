@@ -17,8 +17,13 @@ fn child_silent() -> anyhow::Result<()> {
             stderr,
         } = output;
 
-        assert_eq!(stdout, "");
-        assert_eq!(stderr, "Error: empty output for zpool status\n");
+        insta::assert_snapshot!(stdout, @"");
+        insta::assert_snapshot!(stderr, @r###"
+        Error: failed to create metrics
+
+        Caused by:
+            empty output from zpool command
+        "###);
         assert!(!status.success());
     }
 
@@ -53,13 +58,14 @@ fn child_sleep_forever() -> anyhow::Result<()> {
             stderr,
         } = output;
 
-        assert_eq!(stdout, "");
-        assert!(
-            stderr
-                .lines()
-                .any(|line| line.trim().starts_with("command timed out")),
-            "stderr {stderr:?}"
-        );
+        insta::assert_snapshot!(stdout, @"");
+        insta::assert_snapshot!(stderr, @r###"
+        Error: failed to create metrics
+
+        Caused by:
+            0: failed to execute zpool command
+            1: command "zpool" (args ["status"]) should complete within the timeout
+        "###);
         assert!(!status.success());
     }
 
