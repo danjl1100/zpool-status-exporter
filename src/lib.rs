@@ -624,7 +624,8 @@ mod exec {
     /// # Errors
     /// Returns an error if the command execution fails, or the output is non-utf8
     pub fn zpool_status() -> Result<String, Error> {
-        const ARGS: &[&str] = &["status"];
+        // NOTE: "-p" for parsable (exact) values in the device table
+        const ARGS: &[&str] = &["status", "-p"];
 
         run_command("/sbin/zpool", ARGS).or_else(|err| {
             if err.is_spawn_error() {
@@ -676,7 +677,7 @@ mod exec {
         }
 
         let Output {
-            status: _,
+            status,
             stdout,
             stderr,
         } = subcommand
@@ -684,14 +685,13 @@ mod exec {
             .map_err(ErrorKind::ChildOutput)
             .map_err(make_error)?;
 
-        // TODO report command failure as an error
-        // if !status.success() {
-        //     return Err(make_error(ErrorKind::ChildFailed {
-        //         status,
-        //         stdout,
-        //         stderr,
-        //     }));
-        // }
+        if !status.success() {
+            return Err(make_error(ErrorKind::ChildFailed {
+                status,
+                stdout: String::from_utf8_lossy(&stdout).to_string(),
+                stderr: String::from_utf8_lossy(&stderr).to_string(),
+            }));
+        }
 
         let output = if stdout.is_empty() { stderr } else { stdout };
 
@@ -714,6 +714,11 @@ mod exec {
         ChildTerminate(std::io::Error),
         Timeout,
         NonUtf8Output(std::string::FromUtf8Error),
+        ChildFailed {
+            status: std::process::ExitStatus,
+            stdout: String,
+            stderr: String,
+        },
     }
     impl std::error::Error for Error {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -722,7 +727,7 @@ mod exec {
                 | ErrorKind::ChildStatus(err)
                 | ErrorKind::ChildOutput(err)
                 | ErrorKind::ChildTerminate(err) => Some(err),
-                ErrorKind::Timeout => None,
+                ErrorKind::Timeout | ErrorKind::ChildFailed { .. } => None,
                 ErrorKind::NonUtf8Output(err) => Some(err),
             }
         }
@@ -741,6 +746,13 @@ mod exec {
                 ErrorKind::ChildTerminate(_) => "should terminate successfully",
                 ErrorKind::Timeout => "should complete within the timeout",
                 ErrorKind::NonUtf8Output(_) => "should output valid UTF-8",
+                ErrorKind::ChildFailed {
+                    status,
+                    stdout,
+                    stderr,
+                } => &format!(
+                    "failed with exit code {status},  stdout: {stdout:?}, stderr: {stderr:?}"
+                ),
             };
             write!(f, "command {command:?} (args {args:?}) {kind_str}")
         }

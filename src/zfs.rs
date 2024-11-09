@@ -557,7 +557,12 @@ mod device_metrics {
             };
             let parse_count = |cell: Option<&str>, kind_if_missing| {
                 cell.ok_or(kind_if_missing)
-                    .and_then(|cell| cell.parse().map_err(ErrorKind::InvalidCount))
+                    .and_then(|cell| {
+                        cell.parse().map_err(|error| ErrorKind::InvalidCount {
+                            error,
+                            cell: cell.to_owned(),
+                        })
+                    })
                     .map_err(make_error)
             };
 
@@ -595,7 +600,10 @@ mod device_metrics {
         MissingWriteErrorCount,
         MissingChecksumErrorCount,
         InvalidLeadingWhitespace,
-        InvalidCount(std::num::ParseIntError),
+        InvalidCount {
+            error: std::num::ParseIntError,
+            cell: String,
+        },
     }
     impl std::error::Error for Error {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -607,7 +615,7 @@ mod device_metrics {
                 | ErrorKind::MissingWriteErrorCount
                 | ErrorKind::MissingChecksumErrorCount
                 | ErrorKind::InvalidLeadingWhitespace => None,
-                ErrorKind::InvalidCount(err) => Some(err),
+                ErrorKind::InvalidCount { error, .. } => Some(error),
             }
         }
     }
@@ -622,7 +630,7 @@ mod device_metrics {
                 ErrorKind::MissingWriteErrorCount => "expected write error count",
                 ErrorKind::MissingChecksumErrorCount => "expected checksum error count",
                 ErrorKind::InvalidLeadingWhitespace => "invalid leading whitespace in table",
-                ErrorKind::InvalidCount(_) => "invalid count",
+                ErrorKind::InvalidCount { error: _, cell } => &format!("invalid count {cell:?}"),
             };
             if let Some(device_name) = device_name {
                 write!(f, "{description} for device {device_name:?}")

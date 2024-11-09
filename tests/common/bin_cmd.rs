@@ -14,6 +14,8 @@ pub enum FakeZpoolMode {
     DevsMissing,
     Silent,
     SleepForever,
+    ExitCode1,
+    ExitCode2,
 }
 #[derive(Default)]
 pub struct BinCommand {
@@ -58,6 +60,8 @@ impl BinCommand {
                 FakeZpoolMode::DevsMissing => "devs-missing",
                 FakeZpoolMode::Silent => "silent",
                 FakeZpoolMode::SleepForever => "sleep-forever",
+                FakeZpoolMode::ExitCode1 => "exit-code1",
+                FakeZpoolMode::ExitCode2 => "exit-code2",
             };
             command.env("FAKE_ZPOOL_MODE", mode_str);
         }

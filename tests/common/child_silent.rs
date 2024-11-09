@@ -64,7 +64,7 @@ fn child_sleep_forever() -> anyhow::Result<()> {
 
         Caused by:
             0: failed to execute zpool command
-            1: command "zpool" (args ["status"]) should complete within the timeout
+            1: command "zpool" (args ["status", "-p"]) should complete within the timeout
         "###);
         assert!(!status.success());
     }

@@ -68,4 +68,5 @@ test_cases! {
     case04 {04-scrub-progress}
     case05 {05-features}
     case06 {06-removed}
+    case07 {07-unavail}
 }

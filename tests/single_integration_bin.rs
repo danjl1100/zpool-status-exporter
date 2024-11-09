@@ -17,9 +17,12 @@ mod common {
     const LISTEN_ADDRESS_CHILD_STDERR_2: &str = "127.0.0.1:9585";
     const LISTEN_ADDRESS_CHILD_SILENT_1: &str = "127.0.0.1:9586";
     const LISTEN_ADDRESS_CHILD_SILENT_2: &str = "127.0.0.1:9587";
+    const LISTEN_ADDRESS_CHILD_EXITCODE_1: &str = "127.0.0.1:9588";
+    const LISTEN_ADDRESS_CHILD_EXITCODE_2: &str = "127.0.0.1:9589";
 
     type MiniReqResult = Result<minreq::Response, minreq::Error>;
 
+    mod child_exitcode;
     mod child_silent;
     mod child_stderr;
     mod end_to_end;
