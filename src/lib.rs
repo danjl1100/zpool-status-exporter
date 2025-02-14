@@ -83,15 +83,7 @@ impl Default for AppContext {
     }
 }
 impl AppContext {
-    /// Recommend to call this function in main, before all other actions
-    /// (with no decorators on main, no async executors, etc.)
-    ///
-    /// # Safety
-    ///
-    /// Preconditions:
-    ///  - There shall be no other threads in the process
-    ///
-    #[allow(clippy::missing_panics_doc)]
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self::new_with_timezone(jiff::tz::TimeZone::system())
     }
