@@ -57,6 +57,7 @@ in rec {
     group ? "zpool-status-exporter",
     wants ? [],
     after ? [],
+    binds_to ? [],
   }: {
     description = "${name} Web Server";
     serviceConfig =
@@ -80,6 +81,7 @@ in rec {
       wants
       after
       ;
+    bindsTo = binds_to;
   };
 
   render_service = {
@@ -96,12 +98,14 @@ in rec {
       environment,
       wants,
       after,
+      bindsTo,
     }:
       pkgs.symlinkJoin {
         name = "${name}_systemd_rendered";
         paths = let
           unit_attrs = {
             After = pkgs.lib.strings.concatStringsSep " " after;
+            BindsTo = pkgs.lib.strings.concatStringsSep " " bindsTo;
             Description = description;
             Wants = pkgs.lib.strings.concatStringsSep " " wants;
           };
@@ -162,6 +166,7 @@ in rec {
       user = "my-special-user";
       wants = ["wants-some-other.service" "wants-another.service"];
       after = ["after1.service" "after2.service"];
+      binds_to = ["binds-to-1.device" "binds-to-2.device"];
     };
 
     # use `pkgs` and `nixosModules` to build a system, to examine systemd output
@@ -190,6 +195,7 @@ in rec {
                 basic_auth_keys_file
                 wants
                 after
+                binds_to
                 ;
             };
           })
@@ -222,6 +228,7 @@ in rec {
             basic_auth_keys_file
             wants
             after
+            binds_to
             ;
         };
       };

@@ -69,6 +69,14 @@
         '';
         default = ["network-online.target"];
       };
+      binds_to = lib.mkOption {
+        type = lib.types.listOf unitNameType;
+        description = ''
+          If the specified units are stopped, this unit will be stopped too.
+        '';
+        default = [];
+        example = ["sys-devices-virtual-net-tailscale0.device"];
+      };
     };
     config = lib.mkIf cfg.enable {
       nixpkgs.overlays = [
@@ -92,6 +100,7 @@
           basic_auth_keys_file
           wants
           after
+          binds_to
           ;
         zpool-status-exporter = cfg.package;
         zfs = config.boot.zfs.package;
