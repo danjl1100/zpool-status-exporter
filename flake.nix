@@ -4,10 +4,6 @@
   description = "prometheus exporter for zpool-status metrics";
 
   inputs = {
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     crane.url = "github:ipetkov/crane";
     advisory-db = {
       url = "github:rustsec/advisory-db";
@@ -24,7 +20,6 @@
     nixpkgs,
     flake-compat,
     # rust
-    rust-overlay,
     crane,
     advisory-db,
   }: let
@@ -32,7 +27,6 @@
       "x86_64-linux"
       # "aarch64-darwin"
     ];
-    arguments.parent_overlay = rust-overlay.overlays.default;
     arguments.for_package = {
       inherit
         advisory-db
@@ -50,7 +44,6 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [arguments.parent_overlay];
         };
 
         package = pkgs.callPackage ./nix/package.nix arguments.for_package;
@@ -112,16 +105,11 @@
     )
     // {
       overlays.default = final: prev: let
-        # apply parent overlay
-        parent_overlay = arguments.parent_overlay final prev;
-
         package = final.callPackage ./nix/package.nix arguments.for_package;
-      in
-        parent_overlay
-        // {
-          # NOTE: infinite recursion when using `${crate-name} = ...` syntax
-          inherit (package) zpool-status-exporter;
-        };
+      in {
+        # NOTE: infinite recursion when using `${crate-name} = ...` syntax
+        inherit (package) zpool-status-exporter;
+      };
 
       inherit (nixos) nixosModules;
 

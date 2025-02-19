@@ -8,14 +8,9 @@
   # crate
   crate-name = "zpool-status-exporter";
 
-  rustChannel = "beta";
-  rustVersion = "latest";
-  rustToolchain = pkgs.rust-bin.${rustChannel}.${rustVersion}.default;
-  rustToolchainForDevshell = rustToolchain.override {
-    extensions = ["rust-analyzer" "rust-src"];
-  };
-  craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
-  craneLibForDevShell = (crane.mkLib pkgs).overrideToolchain rustToolchainForDevshell;
+  # no custom toolchain, that would be instead: (crane.mkLib pkgs).overrideToolchain rustToolchain
+  craneLib = crane.mkLib pkgs;
+  craneLibForDevShell = crane.mkLib pkgs;
 
   installOnlyBin = bin-name: "mkdir -p $out/bin; cp target/release/${bin-name} $out/bin/";
 
@@ -59,14 +54,6 @@
           ${open-cmd} "file://${crate.doc-deps}/share/doc/${dash-to-underscores crate-name}/index.html"
         '';
       };
-    for-std = toolchainWithRustDoc:
-      pkgs.writeShellApplication {
-        name = "open-doc-std";
-        text = ''
-          echo "Opening docs for rust std..."
-          ${open-cmd} file://${toolchainWithRustDoc}/share/doc/rust/html/std/index.html
-        '';
-      };
     inherit open-cmd;
   };
 
@@ -79,9 +66,6 @@
     };
     rust-doc-deps = mkApp {
       drv = drv-open-doc.for-crate-deps crate-name;
-    };
-    rust-doc-std = mkApp {
-      drv = drv-open-doc.for-std rustToolchainForDevshell;
     };
   };
   apps =
