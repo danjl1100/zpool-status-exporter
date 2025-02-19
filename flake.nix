@@ -13,7 +13,7 @@
       url = "github:rustsec/advisory-db";
       flake = false;
     };
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.05";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.11";
     flake-compat.url = "github:nix-community/flake-compat";
   };
 
