@@ -77,6 +77,13 @@
         default = [];
         example = ["sys-devices-virtual-net-tailscale0.device"];
       };
+      exec_start_pre = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        description = ''
+          Runs the command(s) prior to starting the unit
+        '';
+        default = [];
+      };
     };
     config = lib.mkIf cfg.enable {
       nixpkgs.overlays = [
@@ -101,6 +108,7 @@
           wants
           after
           binds_to
+          exec_start_pre
           ;
         zpool-status-exporter = cfg.package;
         zfs = config.boot.zfs.package;

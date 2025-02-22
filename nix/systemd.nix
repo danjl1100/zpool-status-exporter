@@ -58,6 +58,7 @@ in rec {
     wants ? [],
     after ? [],
     binds_to ? [],
+    exec_start_pre ? [],
   }: {
     description = "${name} Web Server";
     serviceConfig =
@@ -69,6 +70,7 @@ in rec {
         ExecStart = "${zpool-status-exporter}/bin/zpool-status-exporter";
         User = user;
         Group = group;
+        ExecStartPre = exec_start_pre;
       }
       // hardening;
     wantedBy = ["default.target"];
@@ -167,6 +169,7 @@ in rec {
       wants = ["wants-some-other.service" "wants-another.service"];
       after = ["after1.service" "after2.service"];
       binds_to = ["binds-to-1.device" "binds-to-2.device"];
+      exec_start_pre = ["exec-start-pre.sh" "also-this.sh"];
     };
 
     # use `pkgs` and `nixosModules` to build a system, to examine systemd output
@@ -196,6 +199,7 @@ in rec {
                 wants
                 after
                 binds_to
+                exec_start_pre
                 ;
             };
           })
@@ -229,6 +233,7 @@ in rec {
             wants
             after
             binds_to
+            exec_start_pre
             ;
         };
       };
