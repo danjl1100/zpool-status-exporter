@@ -16,7 +16,6 @@
   outputs = {
     # common
     self,
-    flake-utils,
     nixpkgs,
     flake-compat,
     # rust
@@ -32,15 +31,58 @@
         advisory-db
         crane
         ;
-      inherit (flake-utils.lib) mkApp;
+      inherit mkApp;
     };
     nixos = import ./nix/nixos.nix {
       overlay = self.overlays.default;
     };
 
+    # inlined from <https://github.com/numtide/flake-utils/blob/fa06cc1b3d9f8261138ab7e1bc54d115cfcdb6ea/lib.nix#L33>
+    # Builds a map from <attr>=value to <attr>.<system>=value for each system.
+    eachSystem = let
+      # Applies a merge operation accross systems.
+      eachSystemOp = op: systems: f:
+        builtins.foldl' (op f) {} (
+          if !builtins ? currentSystem || builtins.elem builtins.currentSystem systems
+          then systems
+          else
+            # Add the current system if the --impure flag is used.
+            systems ++ [builtins.currentSystem]
+        );
+    in
+      eachSystemOp (
+        # Merge outputs for each system.
+        f: attrs: system: let
+          ret = f system;
+        in
+          builtins.foldl' (
+            attrs: key:
+              attrs
+              // {
+                ${key} =
+                  (attrs.${key} or {})
+                  // {
+                    ${system} = ret.${key};
+                  };
+              }
+          )
+          attrs (builtins.attrNames ret)
+      );
+
+    # inlined from <https://github.com/numtide/flake-utils/blob/fa06cc1b3d9f8261138ab7e1bc54d115cfcdb6ea/lib.nix#L33>
+    # Returns the structure used by `nix app`
+    mkApp = {
+      drv,
+      name ? drv.pname or drv.name,
+      exePath ? drv.passthru.exePath or "/bin/${name}",
+    }: {
+      type = "app";
+      program = "${drv}${exePath}";
+    };
+
     systemd = import ./nix/systemd.nix;
   in
-    flake-utils.lib.eachSystem target_systems (
+    eachSystem target_systems (
       system: let
         pkgs = import nixpkgs {
           inherit system;
@@ -71,14 +113,6 @@
           vm-tests = pkgs.callPackage ./nix/vm-tests {
             inherit (nixos) nixosModules;
           };
-        in {
-          ${crate-name} = package.${crate-name};
-          default = package.${crate-name};
-
-          inherit
-            vm-tests
-            systemd-render-check
-            ;
 
           all-long-tests = pkgs.symlinkJoin {
             name = "all-long-tests";
@@ -88,6 +122,18 @@
               systemd-render-check
             ];
           };
+        in {
+          ${crate-name} = package.${crate-name};
+          default = package.${crate-name};
+
+          inherit
+            all-long-tests
+            vm-tests
+            systemd-render-check
+            ;
+
+          # alias for convenience
+          ci = all-long-tests;
         };
 
         devShells = {
