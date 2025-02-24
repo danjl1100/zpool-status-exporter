@@ -22,7 +22,12 @@ let
     RestrictNamespaces = true;
     RestrictRealtime = true;
     SystemCallArchitectures = "native";
-    SystemCallFilter = ["@system-service" "~@privileged" "~@resources"];
+    SystemCallFilter = [
+      "@system-service"
+      ## Apparently "@privileged" (e.g. CAP_NET_RAW) is needed to allow `ping` in the ExecStartPre.
+      # "~@privileged"
+      "~@resources"
+    ];
     UMask = "0077";
   };
   # TODO remove Tmux-test serviceConfig
