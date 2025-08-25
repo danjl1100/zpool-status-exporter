@@ -6,6 +6,7 @@
   test_sources = {
     empty-zfs = ./empty-zfs.nix;
     empty-zfs-auth = ./empty-zfs-auth.nix;
+    max-bind-retries = ./max-bind-retries.nix;
   };
   tests = builtins.mapAttrs (_name: test_source:
     callPackage test_source {

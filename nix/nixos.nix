@@ -84,6 +84,13 @@
         '';
         default = [];
       };
+      maxBindRetries = lib.mkOption {
+        type = lib.types.ints.unsigned;
+        description = ''
+          Maximum number of bind retry attempts (0 = no retries, just 1 attempt).
+        '';
+        default = 5;
+      };
     };
     config = lib.mkIf cfg.enable {
       nixpkgs.overlays = [
@@ -109,6 +116,7 @@
           after
           binds_to
           exec_start_pre
+          maxBindRetries
           ;
         zpool-status-exporter = cfg.package;
         zfs = config.boot.zfs.package;

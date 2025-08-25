@@ -27,6 +27,10 @@ struct Args {
     #[clap(env)]
     #[arg(long)]
     basic_auth_keys_file: Option<std::path::PathBuf>,
+    /// Maximum number of bind retry attempts (0 = no retries, just 1 attempt)
+    #[clap(env)]
+    #[arg(long, default_value = "5")]
+    max_bind_retries: u32,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -67,9 +71,13 @@ fn main() -> anyhow::Result<()> {
         let Args {
             listen_address,
             basic_auth_keys_file,
+            max_bind_retries,
         } = Args::parse();
-        let args =
-            zpool_status_exporter::Args::listen_basic_auth(listen_address, basic_auth_keys_file);
+        let args = zpool_status_exporter::Args::listen_basic_auth(
+            listen_address,
+            basic_auth_keys_file,
+            max_bind_retries,
+        );
         app_context
             .server_builder(&args)
             .set_ready_sender(ready_tx)

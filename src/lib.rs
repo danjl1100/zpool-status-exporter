@@ -42,16 +42,20 @@ pub struct Args {
     listen_address: std::net::SocketAddr,
     /// Filename containing allowed basic authentication tokens
     basic_auth_keys_file: Option<std::path::PathBuf>,
+    /// Maximum number of bind retry attempts
+    max_bind_retries: u32,
 }
 impl Args {
     /// Configure listenining with basic authentication
     pub fn listen_basic_auth(
         listen_address: std::net::SocketAddr,
         basic_auth_keys_file: Option<std::path::PathBuf>,
+        max_bind_retries: u32,
     ) -> Self {
         Self {
             listen_address,
             basic_auth_keys_file,
+            max_bind_retries,
         }
     }
 }
@@ -141,7 +145,53 @@ mod server {
         auth::{self, AuthRules},
         AppContext, Args, MetricsError, Ready, Shutdown,
     };
-    use std::net::SocketAddr;
+    use std::{net::SocketAddr, time::Duration};
+
+    /// Calculate delay for exponential backoff
+    pub(crate) fn calculate_delay_seconds(attempt: u32) -> u64 {
+        (1u64 << (attempt - 1)).min(16) // 1, 2, 4, 8, 16, 16, 16... seconds (capped at 16)
+    }
+
+    /// Start server with retry logic
+    pub(crate) fn start_server_with_retry(
+        listen_address: SocketAddr,
+        max_retries: u32,
+    ) -> Result<tiny_http::Server, Error> {
+        let mut attempt = 1;
+        let mut retries_remaining = max_retries;
+
+        loop {
+            // Attempt connection
+            match tiny_http::Server::http(listen_address) {
+                Ok(server) => {
+                    if attempt > 1 {
+                        println!("Successfully bound to {listen_address} on attempt {attempt}");
+                    }
+                    return Ok(server);
+                }
+                Err(e) => {
+                    // Check retries remaining
+                    if retries_remaining == 0 {
+                        // Return error when exhausted
+                        return Err(Error {
+                            kind: ErrorKind::HttpServerBind {
+                                io_error: e,
+                                listen_address,
+                            },
+                        });
+                    }
+
+                    // Delay and continue if retries available
+                    let delay_secs = calculate_delay_seconds(attempt);
+                    eprintln!("Bind attempt {attempt} failed: {e}. Retrying in {delay_secs}s...");
+                    std::thread::sleep(Duration::from_secs(delay_secs));
+
+                    attempt += 1;
+                    retries_remaining -= 1;
+                }
+            }
+        }
+    }
 
     /// Configuration for an HTTP server
     #[must_use]
@@ -196,6 +246,7 @@ mod server {
                     Args {
                         listen_address,
                         basic_auth_keys_file,
+                        max_bind_retries,
                     },
                 mut ready_tx,
                 mut shutdown_rx,
@@ -210,12 +261,7 @@ mod server {
                 .map_err(ErrorKind::AuthFile)
                 .map_err(make_error)?;
 
-            let server = tiny_http::Server::http(listen_address)
-                .map_err(|io_error| ErrorKind::HttpServerBind {
-                    io_error,
-                    listen_address: listen_address.to_owned(),
-                })
-                .map_err(make_error)?;
+            let server = start_server_with_retry(*listen_address, *max_bind_retries)?;
 
             // ensure fail-fast
             {
@@ -753,5 +799,57 @@ mod exec {
         fn is_spawn_error(&self) -> bool {
             matches!(self.kind, ErrorKind::ChildSpawn(_))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::server::{calculate_delay_seconds, start_server_with_retry};
+    use std::net::{SocketAddr, TcpListener};
+
+    #[test]
+    fn test_calculate_delay_seconds() {
+        // Test exponential backoff: 1, 2, 4, 8, 16, 16, 16...
+        assert_eq!(calculate_delay_seconds(1), 1);
+        assert_eq!(calculate_delay_seconds(2), 2);
+        assert_eq!(calculate_delay_seconds(3), 4);
+        assert_eq!(calculate_delay_seconds(4), 8);
+        assert_eq!(calculate_delay_seconds(5), 16);
+        assert_eq!(calculate_delay_seconds(6), 16); // capped at 16
+        assert_eq!(calculate_delay_seconds(10), 16); // capped at 16
+    }
+
+    #[test]
+    fn test_no_retries_single_attempt() {
+        // Bind to an occupied port to force failure
+        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind test socket");
+        let local_addr = listener.local_addr().expect("Failed to get local address");
+
+        // Test that 0 retries = exactly 1 attempt
+        let result = start_server_with_retry(local_addr, 0);
+        assert!(result.is_err());
+
+        if let Err(error) = result {
+            let error_message = error.to_string();
+            assert!(error_message.contains("failed to bind HTTP server"));
+        }
+    }
+
+    #[test]
+    fn test_successful_bind_first_attempt() {
+        // Use port 0 to let the OS assign an available port
+        let addr: SocketAddr = "127.0.0.1:0".parse().expect("Valid socket address");
+
+        let result = start_server_with_retry(addr, 5);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_successful_bind_with_retries_available() {
+        // Test that having retries available doesn't affect successful first attempt
+        let addr: SocketAddr = "127.0.0.1:0".parse().expect("Valid socket address");
+
+        let result = start_server_with_retry(addr, 10);
+        assert!(result.is_ok());
     }
 }

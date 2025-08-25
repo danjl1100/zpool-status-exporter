@@ -1,1 +1,0 @@
-- [ ] add max-bind-retries per the developer doc Instructions-max-bind-retries.md from another similar project

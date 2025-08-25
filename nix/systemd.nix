@@ -64,6 +64,7 @@ in rec {
     after ? [],
     binds_to ? [],
     exec_start_pre ? [],
+    maxBindRetries ? 5,
   }: {
     description = "${name} Web Server";
     serviceConfig =
@@ -83,6 +84,7 @@ in rec {
     environment = {
       LISTEN_ADDRESS = listen_address;
       BASIC_AUTH_KEYS_FILE = basic_auth_keys_file;
+      MAX_BIND_RETRIES = toString maxBindRetries;
     };
     inherit
       wants
@@ -175,6 +177,7 @@ in rec {
       after = ["after1.service" "after2.service"];
       binds_to = ["binds-to-1.device" "binds-to-2.device"];
       exec_start_pre = ["exec-start-pre.sh" "also-this.sh"];
+      maxBindRetries = 10;
     };
 
     # use `pkgs` and `nixosModules` to build a system, to examine systemd output
@@ -205,6 +208,7 @@ in rec {
                 after
                 binds_to
                 exec_start_pre
+                maxBindRetries
                 ;
             };
           })
@@ -239,6 +243,7 @@ in rec {
             after
             binds_to
             exec_start_pre
+            maxBindRetries
             ;
         };
       };
