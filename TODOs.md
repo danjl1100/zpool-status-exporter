@@ -1,3 +1,0 @@
-- [x] change flake to use plain rustPlatform.buildRustPackage
-- [ ] cargo update / cargo outdated
-- [ ] update to edition 2024
