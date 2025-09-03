@@ -1,18 +1,31 @@
-# This file provides backward compatibility to nix < 2.4 clients
-{system ? builtins.currentSystem}: let
-  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+{
+  pkgs ? import <nixpkgs> {},
+  lib ? pkgs.lib,
+  rustPlatform ? pkgs.rustPlatform,
+}:
+rustPlatform.buildRustPackage rec {
+  pname = "zpool-status-exporter";
+  version = "0.1.0";
 
-  root = lock.nodes.${lock.root};
-  inherit (lock.nodes.${root.inputs.flake-compat}.locked) owner repo rev narHash;
-
-  flake-compat = fetchTarball {
-    url = "https://github.com/${owner}/${repo}/archive/${rev}.tar.gz";
-    sha256 = narHash;
-  };
-
-  flake = import flake-compat {
-    inherit system;
+  src = lib.cleanSourceWith {
     src = ./.;
+    filter = path: type: let
+      baseName = baseNameOf path;
+      relativePath = lib.removePrefix (toString ./. + "/") (toString path);
+    in
+      # Allow root Rust files and configuration
+      baseName
+      == "Cargo.toml"
+      || baseName == "Cargo.lock"
+      || baseName == "default.nix"
+      # Allow directories and contents for Rust source
+      || baseName == "src"
+      || baseName == "tests"
+      || lib.hasPrefix "src/" relativePath
+      || lib.hasPrefix "tests/" relativePath;
   };
-in
-  flake.defaultNix
+
+  cargoLock = {
+    lockFile = ./Cargo.lock;
+  };
+}
