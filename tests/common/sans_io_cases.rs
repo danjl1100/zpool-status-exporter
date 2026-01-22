@@ -70,4 +70,5 @@ test_cases! {
     case06 {06-removed}
     case07 {07-unavail}
     case08 {08-features-alt}
+    case09 {09-scrub-cancel}
 }

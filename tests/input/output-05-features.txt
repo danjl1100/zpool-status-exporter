@@ -6,7 +6,7 @@ zpool_pool_state{pool="wilbur"} 10
 # TYPE zpool_pool_status_desc gauge
 zpool_pool_status_desc{pool="rpool"} 5
 zpool_pool_status_desc{pool="wilbur"} 5
-# HELP zpool_scan_state Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30
+# HELP zpool_scan_state Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30, ScrubCanceled = 35
 # TYPE zpool_scan_state gauge
 zpool_scan_state{pool="rpool"} 10
 zpool_scan_state{pool="wilbur"} 10

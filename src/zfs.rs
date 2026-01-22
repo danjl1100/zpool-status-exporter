@@ -61,6 +61,7 @@ pub(super) enum ScanStatus {
     Resilvered,
     // misc
     ScrubInProgress,
+    ScrubCanceled,
     // TODO Add new errors here
     // errors
 }
@@ -99,7 +100,7 @@ enum ZpoolStatusSection {
 }
 
 mod main {
-    use super::{device_metrics, metrics_line_header, PoolMetrics, ZpoolStatusSection};
+    use super::{PoolMetrics, ZpoolStatusSection, device_metrics, metrics_line_header};
     use crate::AppContext;
 
     impl AppContext {
@@ -421,7 +422,7 @@ mod metrics_line_header {
 }
 
 mod scan_content {
-    use crate::{zfs::ScanStatus, AppContext};
+    use crate::{AppContext, zfs::ScanStatus};
 
     const TIME_SEPARATORS: &[&str] = &[" on ", " since "];
 
@@ -735,6 +736,8 @@ impl From<&str> for ScanStatus {
             Self::Resilvered
         } else if scan_status.starts_with("scrub in progress") {
             Self::ScrubInProgress
+        } else if scan_status.starts_with("scrub canceled") {
+            Self::ScrubCanceled
         } else {
             eprintln!("Unrecognized ScanStatus: {scan_status:?}");
             Self::Unrecognized

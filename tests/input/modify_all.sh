@@ -2,7 +2,7 @@
 
 # Utility for updating all tests when the format changes
 
-OLD="# HELP zpool_pool_status_desc Pool status description: Normal = 0, Unrecognized = 1, FeaturesAvailable = 5, SufficientReplicasForMissing = 10, DataCorruption = 50"
-NEW="# HELP zpool_pool_status_desc Pool status description: Normal = 0, Unrecognized = 1, FeaturesAvailable = 5, SufficientReplicasForMissing = 10, DeviceRemoved = 15, DataCorruption = 50"
+OLD="# HELP zpool_scan_state Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30, ScrubCancelled = 35"
+NEW="# HELP zpool_scan_state Scan status: UnknownMissing = 0, Unrecognized = 1, ScrubRepaired = 10, Resilvered = 15, ScrubInProgress = 30, ScrubCanceled = 35"
 
 sed -i "s/${OLD}/${NEW}/" output*.txt ../../src/bin/output-integration.txt

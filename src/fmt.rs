@@ -48,6 +48,7 @@ value_enum! {
         Resilvered => 15,
         // misc
         ScrubInProgress => 30,
+        ScrubCanceled => 35,
         // errors
         // TODO Add new statuses here
     }
