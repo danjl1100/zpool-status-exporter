@@ -94,15 +94,18 @@ mod file {
 }
 
 mod header {
-    use super::{get_header_authorization, AuthResult, AuthRules, DebugUserString};
+    use super::{AuthResult, AuthRules, DebugUserString, get_header_authorization};
     use base64::Engine;
 
     impl AuthRules {
         /// Prints startup message(s) to stdout
         pub fn print_start_message(&self) {
             let count = self.entries_sorted.len();
-            println!("Allow-list configured with {count} entries");
-            println!("!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!");
+            let entry_plural = if count == 1 { "entry" } else { "entries" };
+            println!("Allow-list configured with {count} {entry_plural}");
+            println!(
+                "!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!"
+            );
         }
         /// Evalutes the request against the rules
         ///

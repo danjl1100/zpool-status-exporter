@@ -9,7 +9,7 @@ zpool_pool_status_desc{pool="neptune"} 5
 zpool_scan_state{pool="neptune"} 35
 # HELP zpool_scan_age Scan age in hours
 # TYPE zpool_scan_age gauge
-zpool_scan_age{pool="neptune"} 84.749444
+zpool_scan_age{pool="neptune"} 876000
 # HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="neptune"} 10

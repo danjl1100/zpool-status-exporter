@@ -205,6 +205,7 @@ impl FormatPoolMetrics<'_> {
             meta::metric("error_state", "Error status").with_values();
 
         const SECONDS_PER_HOUR: f64 = 60.0 * 60.0;
+        const HUNDRED_YEARS_IN_HOURS: f64 = 876_000.0;
 
         use PoolSections as S;
         for section in S::ALL {
@@ -233,12 +234,16 @@ impl FormatPoolMetrics<'_> {
                     }
                     S::ScanState => ScanStatusValue::from_opt(scan_status.as_ref()).into(),
                     S::ScanAge => {
-                        let seconds = scan_status.as_ref().map_or(0.0, |(_, scan_time)| {
-                            (self.now - scan_time)
-                                .total(jiff::Unit::Second)
-                                .expect("no overflow and relative zoned")
-                        });
-                        seconds / SECONDS_PER_HOUR
+                        // unit: hours
+                        scan_status
+                            .as_ref()
+                            .and_then(|(_, scan_time)| scan_time.as_ref())
+                            .map_or(HUNDRED_YEARS_IN_HOURS, |scan_time| {
+                                let seconds = (self.now - scan_time)
+                                    .total(jiff::Unit::Second)
+                                    .expect("no overflow and relative zoned");
+                                seconds / SECONDS_PER_HOUR
+                            })
                     }
                     S::ErrorState => ErrorStatusValue::from_opt(error.as_ref()).into(),
                 };

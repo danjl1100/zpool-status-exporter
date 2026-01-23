@@ -17,7 +17,7 @@ pub(crate) struct PoolMetrics {
     pub name: String,
     pub state: Option<DeviceStatus>,
     pub pool_status: Option<PoolStatusDescription>,
-    pub scan_status: Option<(ScanStatus, jiff::Zoned)>,
+    pub scan_status: Option<(ScanStatus, Option<jiff::Zoned>)>,
     pub devices: Vec<DeviceMetrics>,
     pub error: Option<ErrorStatus>,
 }
@@ -430,7 +430,7 @@ mod scan_content {
         pub(super) fn parse_scan_content(
             &self,
             content: &str,
-        ) -> Result<(ScanStatus, jiff::Zoned), Error> {
+        ) -> Result<(ScanStatus, Option<jiff::Zoned>), Error> {
             // remove extra lines - status is only on first line
             let (content, _extra_lines) = content.split_once('\n').unwrap_or((content, ""));
 
@@ -450,13 +450,23 @@ mod scan_content {
             let scan_status = ScanStatus::from(message);
 
             // parse timestamp
-            let timestamp = self
-                .parse_timestamp(timestamp)
-                .map_err(|err| {
-                    let timestamp = timestamp.to_owned();
-                    ErrorKind::ParseTimestamp { timestamp, err }
-                })
-                .map_err(make_error)?;
+            let timestamp = match scan_status {
+                ScanStatus::ScrubCanceled => {
+                    // timestamp of scrub cancellation is misleading for alerts on scrub age
+                    None
+                }
+                ScanStatus::Unrecognized
+                | ScanStatus::ScrubRepaired
+                | ScanStatus::ScrubInProgress
+                | ScanStatus::Resilvered => self
+                    .parse_timestamp(timestamp)
+                    .map_err(|err| {
+                        let timestamp = timestamp.to_owned();
+                        ErrorKind::ParseTimestamp { timestamp, err }
+                    })
+                    .map(Some)
+                    .map_err(make_error)?,
+            };
 
             Ok((scan_status, timestamp))
         }
