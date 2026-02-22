@@ -361,6 +361,14 @@ pub enum NewError {
 
 ### Unit Tests
 
+When unit tests aren't needed, state the justification clearly but omit code examples. When unit tests are needed, provide complete examples.
+
+**If not needed:**
+- State why (e.g., "logic is simple enough to test via integration tests")
+- No code examples required
+
+**If needed:**
+
 **Test file**: `src/module_name.rs` (inline) or `tests/unit/test_name.rs`
 
 \`\`\`rust
@@ -395,7 +403,15 @@ fn test_case_name() {
 
 ### VM Tests (if applicable)
 
-[Describe NixOS module tests needed]
+**NixOS VM tests** validate full-stack integration (systemd service, kernel modules, binary, HTTP endpoints). Keep tests minimal - rely on Rust tests for comprehensive edge case coverage.
+
+**For ZFS features:**
+- Use file-backed zpools (`dd` + loop files) for safety and CI compatibility
+- Keep file sizes small (64MB is sufficient for testing)
+- Test happy paths; let Rust tests handle edge cases
+- Follow patterns in `nix/vm-tests/` directory
+
+[Describe specific NixOS module tests needed]
 ```
 
 ### 9. Configuration & CLI Changes
@@ -435,6 +451,12 @@ new_argument: Option<Type>,
 [What users need to know]
 
 ### Comments
+
+Keep inline comments focused on explaining *why* rather than *what*. Avoid overly detailed comments that enumerate all edge cases - these belong in the specification, not the code.
+
+**Good:** "Rationale: ONLINE + no status + no scan = healthy new pool"
+**Too detailed:** Long comments listing every possible state combination and fallback behavior
+
 [Where inline comments are needed for complex logic]
 ```
 
@@ -496,17 +518,17 @@ new-crate = "version"  # Reason for inclusion
 ```markdown
 ## Performance Considerations
 
-### Expected Performance
-[Performance characteristics of the solution]
+Keep this section terse when performance impact is negligible (O(1) operations, no allocation, no I/O). Focus on the key point.
 
-### Resource Usage
-[Memory, CPU, disk usage expectations]
+**If negligible overhead:**
+- State it's negligible with brief justification
+- No detailed subsections or benchmarking code needed
 
-### Optimization Opportunities
-[Where performance could be improved if needed]
-
-### Benchmarking
-[How to measure performance]
+**If significant impact:**
+- Detail expected performance characteristics
+- Describe resource usage (memory, CPU, disk)
+- List optimization opportunities
+- Provide benchmarking approach
 ```
 
 ### 15. Migration & Compatibility
