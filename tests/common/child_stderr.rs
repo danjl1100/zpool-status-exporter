@@ -1,6 +1,6 @@
 use crate::{
-    common::bin_cmd::{BinCommand, BinOutput, FakeZpoolMode},
     HTTP_OK,
+    common::bin_cmd::{BinCommand, BinOutput, FakeZpoolMode},
 };
 use std::{net::SocketAddr, str::FromStr};
 
