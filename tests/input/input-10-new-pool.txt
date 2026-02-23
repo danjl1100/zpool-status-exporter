@@ -1,0 +1,12 @@
+TEST_TIMESTAMP=0
+  pool: milton
+ state: ONLINE
+config:
+
+	NAME                                 STATE     READ WRITE CKSUM
+	milton                               ONLINE       0     0     0
+	  mirror-0                           ONLINE       0     0     0
+	    ata-ST8000VN004-2M2101_WSD4EYEW  ONLINE       0     0     0
+	    ata-ST8000VN004-2M2101_WSD49ZDC  ONLINE       0     0     0
+
+errors: No known data errors

@@ -82,7 +82,10 @@ fn assert_equals_ignore(response: &str, expected: &str, ignore: &str) {
             "only allowed one {ignore} per line, at end of line"
         );
 
-        assert!(response.len() >= expected.len(), "response too short for expected pattern\n\texpected = {expected:?}\n\tresponse = {response:?}");
+        assert!(
+            response.len() >= expected.len(),
+            "response too short for expected pattern\n\texpected = {expected:?}\n\tresponse = {response:?}"
+        );
         let (response_trimmed, response_remainder) = response.split_at(expected.len());
 
         // SANITY - verify ignored portion is numeric

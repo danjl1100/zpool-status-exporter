@@ -142,8 +142,8 @@ impl AppContext {
 
 mod server {
     use crate::{
-        auth::{self, AuthRules},
         AppContext, Args, MetricsError, Ready, Shutdown,
+        auth::{self, AuthRules},
     };
     use std::{net::SocketAddr, time::Duration};
 
@@ -355,8 +355,8 @@ mod server {
 
 mod respond {
     use crate::{
-        auth::{self, AuthResult, AuthRules, DebugUserStringRef},
         AppContext, MetricsError, ServerBuilder, Timestamp,
+        auth::{self, AuthResult, AuthRules, DebugUserStringRef},
     };
     use std::time::Duration;
 
@@ -400,7 +400,7 @@ mod respond {
                 let auth_result = auth_rules.map_or(Ok(AuthResult::NoneConfigured), |auth_rules| {
                     auth_rules.query(&request)
                 });
-                let response_result = match auth_result {
+                match auth_result {
                     Ok(auth_result) => app_context
                         .timestamp_now()
                         .handle_request(request, auth_result),
@@ -408,8 +408,7 @@ mod respond {
                         println!("{err}");
                         respond_code(request, HTTP_BAD_REQUEST, None)
                     }
-                };
-                response_result
+                }
             } else {
                 std::thread::sleep(RECV_SLEEP);
                 Ok(())
@@ -582,7 +581,7 @@ pub struct Timestamp<'a> {
     compute_time_start: Option<Instant>,
 }
 mod metrics {
-    use crate::{exec, fmt, Timestamp, ZfsParseError};
+    use crate::{Timestamp, ZfsParseError, exec, fmt};
 
     impl Timestamp<'_> {
         pub(crate) fn get_metrics_str(&self) -> Result<String, Error> {

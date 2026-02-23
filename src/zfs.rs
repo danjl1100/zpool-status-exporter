@@ -23,7 +23,7 @@ pub(crate) struct PoolMetrics {
 }
 
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum DeviceStatus {
     // unknown
     Unrecognized,
@@ -62,6 +62,8 @@ pub(super) enum ScanStatus {
     // misc
     ScrubInProgress,
     ScrubCanceled,
+    /// Pool has never been scanned (new pool, no scan line in zpool status)
+    NeverScanned,
     // TODO Add new errors here
     // errors
 }
@@ -122,7 +124,7 @@ mod main {
             &self,
             zpool_output: &str,
         ) -> Result<Vec<PoolMetrics>, Error> {
-            let mut pools = vec![];
+            let mut pools: Vec<PoolMetrics> = vec![];
             // disambiguate from header sections and devices (which may contain COLON)
             let mut current_section = ZpoolStatusSection::default();
             let mut lines = zpool_output.lines().enumerate().peekable();
@@ -153,6 +155,11 @@ mod main {
                             let label = label.trim();
                             let content = content.trim();
                             if label == "pool" {
+                                // Finalize the previous pool before starting a new one
+                                if let Some(pool) = pools.last_mut() {
+                                    pool.finalize_scan_status();
+                                }
+
                                 let name = content.to_string();
                                 pools.push(PoolMetrics::new(name));
                                 Ok(())
@@ -225,6 +232,12 @@ mod main {
                     }
                 }?;
             }
+
+            // Finalize the last pool after parsing completes
+            if let Some(pool) = pools.last_mut() {
+                pool.finalize_scan_status();
+            }
+
             Ok(pools)
         }
     }
@@ -304,6 +317,30 @@ impl PoolMetrics {
         let device = line.parse()?;
         self.devices.push(device);
         Ok(())
+    }
+
+    /// Finalizes the scan status after all headers have been parsed.
+    ///
+    /// Detects the `NeverScanned` condition when:
+    /// - Pool state is exactly `ONLINE`
+    /// - No `status:` line was present (`pool_status` is `None`)
+    /// - No `scan:` line was present (`scan_status` is `None`)
+    ///
+    /// This method should be called after all headers for a pool have been processed
+    /// but before processing the next pool or completing the parse.
+    fn finalize_scan_status(&mut self) {
+        // Only apply NeverScanned to ONLINE pools without status/scan lines
+        //
+        // Rationale: ONLINE + no status + no scan = healthy new pool
+        // Any other state combination keeps the existing None (becomes UnknownMissing)
+        if self.state == Some(DeviceStatus::Online)
+            && self.pool_status.is_none()
+            && self.scan_status.is_none()
+        {
+            // This is a new, never-scanned pool
+            // Set scan_status with None timestamp (will use 100-year convention)
+            self.scan_status = Some((ScanStatus::NeverScanned, None));
+        }
     }
 }
 
@@ -451,8 +488,9 @@ mod scan_content {
 
             // parse timestamp
             let timestamp = match scan_status {
-                ScanStatus::ScrubCanceled => {
+                ScanStatus::ScrubCanceled | ScanStatus::NeverScanned => {
                     // timestamp of scrub cancellation is misleading for alerts on scrub age
+                    // NeverScanned has no timestamp (will use 100-year convention)
                     None
                 }
                 ScanStatus::Unrecognized

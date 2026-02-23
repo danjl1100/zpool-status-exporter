@@ -3,8 +3,7 @@ use crate::common::bin_cmd::{BinCommand, BinOutput, FakeZpoolMode};
 #[test]
 fn oneshot() -> anyhow::Result<()> {
     const ONESHOT: &str = "--oneshot-test-print";
-    const EXPECTED_OUTPUT: &str =
-        "# no pools reported\n# HELP zpool_lookup total duration of the lookup in seconds\n# TYPE zpool_lookup gauge\nzpool_lookup";
+    const EXPECTED_OUTPUT: &str = "# no pools reported\n# HELP zpool_lookup total duration of the lookup in seconds\n# TYPE zpool_lookup gauge\nzpool_lookup";
 
     let (output, ()) = BinCommand::new()
         .arg(ONESHOT)

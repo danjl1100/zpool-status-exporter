@@ -1,9 +1,8 @@
 use super::MiniReqResult;
 use crate::{
-    assert_matches_template, assert_response,
-    common::bin_cmd::{BinCommand, BinOutput},
     HTTP_FORBIDDEN, HTTP_FORBIDDEN_STRING, HTTP_NOT_FOUND, HTTP_NOT_FOUND_STRING, HTTP_OK,
-    HTTP_UNAUTHORIZED, HTTP_UNAUTHORIZED_STRING,
+    HTTP_UNAUTHORIZED, HTTP_UNAUTHORIZED_STRING, assert_matches_template, assert_response,
+    common::bin_cmd::{BinCommand, BinOutput},
 };
 use anyhow::Context as _;
 use base64::Engine;
@@ -104,17 +103,17 @@ fn assert_bin_output(listen_address: &SocketAddr, output: BinOutput) {
     );
 
     assert_eq!(
-            stdout,
-            format!(
-                "Listening at http://{listen_address}\n{}",
-                concat!(
-                    "Allow-list configured with 2 entries\n",
-                    "!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!\n",
-                    "denied access for \"user2:phrase1\" to url \"/metrics\"\n",
-                )
-            ),
-            "stdout"
-        );
+        stdout,
+        format!(
+            "Listening at http://{listen_address}\n{}",
+            concat!(
+                "Allow-list configured with 2 entries\n",
+                "!!!!!! WARNING: HTTP transmits authentication in plaintext, use a HTTPS-proxy on the local machine!!!!!!!\n",
+                "denied access for \"user2:phrase1\" to url \"/metrics\"\n",
+            )
+        ),
+        "stdout"
+    );
 
     assert!(
         status.success(),
