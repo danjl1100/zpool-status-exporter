@@ -71,4 +71,5 @@ test_cases! {
     case07 {07-unavail}
     case08 {08-features-alt}
     case09 {09-scrub-cancel}
+    case10 {10-new-pool}
 }
