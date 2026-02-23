@@ -124,7 +124,7 @@ mod main {
             &self,
             zpool_output: &str,
         ) -> Result<Vec<PoolMetrics>, Error> {
-            let mut pools = vec![];
+            let mut pools: Vec<PoolMetrics> = vec![];
             // disambiguate from header sections and devices (which may contain COLON)
             let mut current_section = ZpoolStatusSection::default();
             let mut lines = zpool_output.lines().enumerate().peekable();
@@ -155,6 +155,11 @@ mod main {
                             let label = label.trim();
                             let content = content.trim();
                             if label == "pool" {
+                                // Finalize the previous pool before starting a new one
+                                if let Some(pool) = pools.last_mut() {
+                                    pool.finalize_scan_status();
+                                }
+
                                 let name = content.to_string();
                                 pools.push(PoolMetrics::new(name));
                                 Ok(())
@@ -227,6 +232,12 @@ mod main {
                     }
                 }?;
             }
+
+            // Finalize the last pool after parsing completes
+            if let Some(pool) = pools.last_mut() {
+                pool.finalize_scan_status();
+            }
+
             Ok(pools)
         }
     }
