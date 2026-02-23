@@ -23,7 +23,7 @@ pub(crate) struct PoolMetrics {
 }
 
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum DeviceStatus {
     // unknown
     Unrecognized,
@@ -306,6 +306,30 @@ impl PoolMetrics {
         let device = line.parse()?;
         self.devices.push(device);
         Ok(())
+    }
+
+    /// Finalizes the scan status after all headers have been parsed.
+    ///
+    /// Detects the `NeverScanned` condition when:
+    /// - Pool state is exactly `ONLINE`
+    /// - No `status:` line was present (`pool_status` is `None`)
+    /// - No `scan:` line was present (`scan_status` is `None`)
+    ///
+    /// This method should be called after all headers for a pool have been processed
+    /// but before processing the next pool or completing the parse.
+    fn finalize_scan_status(&mut self) {
+        // Only apply NeverScanned to ONLINE pools without status/scan lines
+        //
+        // Rationale: ONLINE + no status + no scan = healthy new pool
+        // Any other state combination keeps the existing None (becomes UnknownMissing)
+        if self.state == Some(DeviceStatus::Online)
+            && self.pool_status.is_none()
+            && self.scan_status.is_none()
+        {
+            // This is a new, never-scanned pool
+            // Set scan_status with None timestamp (will use 100-year convention)
+            self.scan_status = Some((ScanStatus::NeverScanned, None));
+        }
     }
 }
 
