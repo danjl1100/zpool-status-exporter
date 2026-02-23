@@ -224,7 +224,6 @@ main() {
     echo ""
     echo "Next steps:"
     echo "  - Review merge with: git log --oneline -n 10"
-    echo "  - Push to remote with: git push origin $MAIN_BRANCH"
     echo "  - Delete feature branch with: git branch -d $CURRENT_BRANCH"
 }
 
