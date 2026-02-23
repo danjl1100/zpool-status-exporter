@@ -49,6 +49,7 @@ value_enum! {
         // misc
         ScrubInProgress => 30,
         ScrubCanceled => 35,
+        NeverScanned => 40,
         // errors
         // TODO Add new statuses here
     }

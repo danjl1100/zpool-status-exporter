@@ -62,6 +62,8 @@ pub(super) enum ScanStatus {
     // misc
     ScrubInProgress,
     ScrubCanceled,
+    /// Pool has never been scanned (new pool, no scan line in zpool status)
+    NeverScanned,
     // TODO Add new errors here
     // errors
 }
@@ -451,8 +453,9 @@ mod scan_content {
 
             // parse timestamp
             let timestamp = match scan_status {
-                ScanStatus::ScrubCanceled => {
+                ScanStatus::ScrubCanceled | ScanStatus::NeverScanned => {
                     // timestamp of scrub cancellation is misleading for alerts on scrub age
+                    // NeverScanned has no timestamp (will use 100-year convention)
                     None
                 }
                 ScanStatus::Unrecognized
