@@ -13,9 +13,9 @@ zpool_scan_age{pool="alpha-centauri"} <IGNORE>
 # HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="alpha-centauri"} 10
-# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# HELP zpool_dev_state Device state (dev="__root__" for pool root): UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 # TYPE zpool_dev_state gauge
-zpool_dev_state{pool="alpha-centauri",dev=""} 10
+zpool_dev_state{pool="alpha-centauri",dev="__root__"} 10
 zpool_dev_state{pool="alpha-centauri",dev="mirror-0"} 1
 zpool_dev_state{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 10
 zpool_dev_state{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 25
@@ -25,9 +25,9 @@ zpool_dev_state{pool="alpha-centauri",dev="mirror-1/ata-444444444444444444444444
 zpool_dev_state{pool="alpha-centauri",dev="mirror-2"} 70
 zpool_dev_state{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 80
 zpool_dev_state{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 100
-# HELP zpool_dev_errors_read Read error count
+# HELP zpool_dev_errors_read Read error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_read gauge
-zpool_dev_errors_read{pool="alpha-centauri",dev=""} 0
+zpool_dev_errors_read{pool="alpha-centauri",dev="__root__"} 0
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0"} 1
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 2
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 3
@@ -37,9 +37,9 @@ zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-1/ata-444444444444444444
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2"} 7
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 8
 zpool_dev_errors_read{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 9
-# HELP zpool_dev_errors_write Write error count
+# HELP zpool_dev_errors_write Write error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_write gauge
-zpool_dev_errors_write{pool="alpha-centauri",dev=""} 10
+zpool_dev_errors_write{pool="alpha-centauri",dev="__root__"} 10
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0"} 11
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 12
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 13
@@ -49,9 +49,9 @@ zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-1/ata-44444444444444444
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2"} 17
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2/wwn-0x5555555555555555-part2"} 18
 zpool_dev_errors_write{pool="alpha-centauri",dev="mirror-2/ata-6666666666666666666666666666-part1"} 19
-# HELP zpool_dev_errors_checksum Checksum error count
+# HELP zpool_dev_errors_checksum Checksum error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_checksum gauge
-zpool_dev_errors_checksum{pool="alpha-centauri",dev=""} 20
+zpool_dev_errors_checksum{pool="alpha-centauri",dev="__root__"} 20
 zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0"} 21
 zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/wwn-0x1111111111111111-part2"} 22
 zpool_dev_errors_checksum{pool="alpha-centauri",dev="mirror-0/ata-2222222222222222222222222222-part1"} 23

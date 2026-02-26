@@ -18,43 +18,43 @@ zpool_scan_age{pool="wilbur"} -474346.336111
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="rpool"} 10
 zpool_error_state{pool="wilbur"} 10
-# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# HELP zpool_dev_state Device state (dev="__root__" for pool root): UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 # TYPE zpool_dev_state gauge
-zpool_dev_state{pool="rpool",dev=""} 10
+zpool_dev_state{pool="rpool",dev="__root__"} 10
 zpool_dev_state{pool="rpool",dev="mirror-0"} 10
 zpool_dev_state{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S6PNNM0TB15709L"} 10
 zpool_dev_state{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S753NS0W819849T"} 10
-zpool_dev_state{pool="wilbur",dev=""} 10
+zpool_dev_state{pool="wilbur",dev="__root__"} 10
 zpool_dev_state{pool="wilbur",dev="mirror-0"} 10
 zpool_dev_state{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD49ZDC-part1"} 10
 zpool_dev_state{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD4EYEW-part1"} 10
-# HELP zpool_dev_errors_read Read error count
+# HELP zpool_dev_errors_read Read error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_read gauge
-zpool_dev_errors_read{pool="rpool",dev=""} 0
+zpool_dev_errors_read{pool="rpool",dev="__root__"} 0
 zpool_dev_errors_read{pool="rpool",dev="mirror-0"} 0
 zpool_dev_errors_read{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S6PNNM0TB15709L"} 0
 zpool_dev_errors_read{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S753NS0W819849T"} 0
-zpool_dev_errors_read{pool="wilbur",dev=""} 0
+zpool_dev_errors_read{pool="wilbur",dev="__root__"} 0
 zpool_dev_errors_read{pool="wilbur",dev="mirror-0"} 0
 zpool_dev_errors_read{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD49ZDC-part1"} 0
 zpool_dev_errors_read{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD4EYEW-part1"} 0
-# HELP zpool_dev_errors_write Write error count
+# HELP zpool_dev_errors_write Write error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_write gauge
-zpool_dev_errors_write{pool="rpool",dev=""} 0
+zpool_dev_errors_write{pool="rpool",dev="__root__"} 0
 zpool_dev_errors_write{pool="rpool",dev="mirror-0"} 0
 zpool_dev_errors_write{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S6PNNM0TB15709L"} 0
 zpool_dev_errors_write{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S753NS0W819849T"} 0
-zpool_dev_errors_write{pool="wilbur",dev=""} 0
+zpool_dev_errors_write{pool="wilbur",dev="__root__"} 0
 zpool_dev_errors_write{pool="wilbur",dev="mirror-0"} 0
 zpool_dev_errors_write{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD49ZDC-part1"} 0
 zpool_dev_errors_write{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD4EYEW-part1"} 0
-# HELP zpool_dev_errors_checksum Checksum error count
+# HELP zpool_dev_errors_checksum Checksum error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_checksum gauge
-zpool_dev_errors_checksum{pool="rpool",dev=""} 0
+zpool_dev_errors_checksum{pool="rpool",dev="__root__"} 0
 zpool_dev_errors_checksum{pool="rpool",dev="mirror-0"} 0
 zpool_dev_errors_checksum{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S6PNNM0TB15709L"} 0
 zpool_dev_errors_checksum{pool="rpool",dev="mirror-0/ata-Samsung_SSD_870_EVO_2TB_S753NS0W819849T"} 0
-zpool_dev_errors_checksum{pool="wilbur",dev=""} 0
+zpool_dev_errors_checksum{pool="wilbur",dev="__root__"} 0
 zpool_dev_errors_checksum{pool="wilbur",dev="mirror-0"} 0
 zpool_dev_errors_checksum{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD49ZDC-part1"} 0
 zpool_dev_errors_checksum{pool="wilbur",dev="mirror-0/ata-ST8000VN004-2M2101_WSD4EYEW-part1"} 0
