@@ -269,7 +269,8 @@ This is exemplary feature implementation that demonstrates:
 - [x] Documentation complete
 
 **Optional follow-up work** (separate PRs, not blocking):
-- [ ] Add NixOS VM test for new-pool scenario (nice-to-have)
+- [x] Add NixOS VM test for new-pool scenario (nice-to-have)
+    - completed in pr/02-vm-test-new-pool
 - [ ] Investigate `dev=""` in metrics output (if unintended)
 - [ ] Add multi-pool test case (confirmatory)
 
