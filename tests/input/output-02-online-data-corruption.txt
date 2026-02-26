@@ -13,27 +13,27 @@ zpool_scan_age{pool="jeremy"} 0
 # HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="jeremy"} 50
-# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# HELP zpool_dev_state Device state (dev="__root__" for pool root): UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 # TYPE zpool_dev_state gauge
-zpool_dev_state{pool="jeremy",dev=""} 10
+zpool_dev_state{pool="jeremy",dev="__root__"} 10
 zpool_dev_state{pool="jeremy",dev="mirror-0"} 10
 zpool_dev_state{pool="jeremy",dev="mirror-0/ata-ST8000DM004-2CX188_ZCT0ZR05-part1"} 10
 zpool_dev_state{pool="jeremy",dev="mirror-0/ata-ST8000VN004-2M2101_WKD02XPR-part1"} 10
-# HELP zpool_dev_errors_read Read error count
+# HELP zpool_dev_errors_read Read error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_read gauge
-zpool_dev_errors_read{pool="jeremy",dev=""} 0
+zpool_dev_errors_read{pool="jeremy",dev="__root__"} 0
 zpool_dev_errors_read{pool="jeremy",dev="mirror-0"} 0
 zpool_dev_errors_read{pool="jeremy",dev="mirror-0/ata-ST8000DM004-2CX188_ZCT0ZR05-part1"} 0
 zpool_dev_errors_read{pool="jeremy",dev="mirror-0/ata-ST8000VN004-2M2101_WKD02XPR-part1"} 0
-# HELP zpool_dev_errors_write Write error count
+# HELP zpool_dev_errors_write Write error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_write gauge
-zpool_dev_errors_write{pool="jeremy",dev=""} 0
+zpool_dev_errors_write{pool="jeremy",dev="__root__"} 0
 zpool_dev_errors_write{pool="jeremy",dev="mirror-0"} 0
 zpool_dev_errors_write{pool="jeremy",dev="mirror-0/ata-ST8000DM004-2CX188_ZCT0ZR05-part1"} 0
 zpool_dev_errors_write{pool="jeremy",dev="mirror-0/ata-ST8000VN004-2M2101_WKD02XPR-part1"} 0
-# HELP zpool_dev_errors_checksum Checksum error count
+# HELP zpool_dev_errors_checksum Checksum error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_checksum gauge
-zpool_dev_errors_checksum{pool="jeremy",dev=""} 0
+zpool_dev_errors_checksum{pool="jeremy",dev="__root__"} 0
 zpool_dev_errors_checksum{pool="jeremy",dev="mirror-0"} 0
 zpool_dev_errors_checksum{pool="jeremy",dev="mirror-0/ata-ST8000DM004-2CX188_ZCT0ZR05-part1"} 0
 zpool_dev_errors_checksum{pool="jeremy",dev="mirror-0/ata-ST8000VN004-2M2101_WKD02XPR-part1"} 0

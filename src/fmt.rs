@@ -267,13 +267,23 @@ enum_all! {
 impl FormatPoolMetrics<'_> {
     fn fmt_device_sections(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const DEVICE_STATE: meta::ValuesMetric<DeviceStatusValue> =
-            meta::metric("dev_state", "Device state").with_values();
+            meta::metric("dev_state", "Device state (dev=\"__root__\" for pool root)")
+                .with_values();
         const ERRORS_READ: meta::SimpleMetric = //
-            meta::metric("dev_errors_read", "Read error count");
+            meta::metric(
+                "dev_errors_read",
+                "Read error count (dev=\"__root__\" for pool root)",
+            );
         const ERRORS_WRITE: meta::SimpleMetric = //
-            meta::metric("dev_errors_write", "Write error count");
+            meta::metric(
+                "dev_errors_write",
+                "Write error count (dev=\"__root__\" for pool root)",
+            );
         const ERRORS_CHECKSUM: meta::SimpleMetric = //
-            meta::metric("dev_errors_checksum", "Checksum error count");
+            meta::metric(
+                "dev_errors_checksum",
+                "Checksum error count (dev=\"__root__\" for pool root)",
+            );
 
         use DeviceSections as S;
         for section in S::ALL {
@@ -336,13 +346,55 @@ impl DeviceTreeName {
 impl std::fmt::Debug for DeviceTreeName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "\"")?;
-        let mut first = Some(());
-        for elem in &self.0 {
-            if first.take().is_none() {
-                write!(f, "/")?;
+        if self.0.is_empty() {
+            // Pool root device (depth=0): use explicit marker
+            write!(f, "__root__")?;
+        } else {
+            // Child devices: slash-separated hierarchy
+            let mut first = Some(());
+            for elem in &self.0 {
+                if first.take().is_none() {
+                    write!(f, "/")?;
+                }
+                write!(f, "{elem}")?;
             }
-            write!(f, "{elem}")?;
         }
         write!(f, "\"")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeviceTreeName;
+
+    #[test]
+    fn device_tree_name_root() {
+        let root = DeviceTreeName::default();
+        assert_eq!(format!("{root:?}"), "\"__root__\"");
+    }
+
+    #[test]
+    fn device_tree_name_single_child() {
+        let mut name = DeviceTreeName::default();
+        name.update(1, "mirror-0".to_string());
+        assert_eq!(format!("{name:?}"), "\"mirror-0\"");
+    }
+
+    #[test]
+    fn device_tree_name_nested_child() {
+        let mut name = DeviceTreeName::default();
+        name.update(1, "mirror-0".to_string());
+        name.update(2, "loop0".to_string());
+        assert_eq!(format!("{name:?}"), "\"mirror-0/loop0\"");
+    }
+
+    #[test]
+    fn device_tree_name_back_to_root() {
+        let mut name = DeviceTreeName::default();
+        name.update(1, "mirror-0".to_string());
+        name.update(2, "loop0".to_string());
+        // Going back to depth=0 should clear and show __root__
+        name.update(0, "pool-name".to_string());
+        assert_eq!(format!("{name:?}"), "\"__root__\"");
     }
 }

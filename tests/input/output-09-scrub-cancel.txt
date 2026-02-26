@@ -13,27 +13,27 @@ zpool_scan_age{pool="neptune"} 876000
 # HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="neptune"} 10
-# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# HELP zpool_dev_state Device state (dev="__root__" for pool root): UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 # TYPE zpool_dev_state gauge
-zpool_dev_state{pool="neptune",dev=""} 10
+zpool_dev_state{pool="neptune",dev="__root__"} 10
 zpool_dev_state{pool="neptune",dev="mirror-0"} 10
 zpool_dev_state{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"} 10
 zpool_dev_state{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"} 10
-# HELP zpool_dev_errors_read Read error count
+# HELP zpool_dev_errors_read Read error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_read gauge
-zpool_dev_errors_read{pool="neptune",dev=""} 0
+zpool_dev_errors_read{pool="neptune",dev="__root__"} 0
 zpool_dev_errors_read{pool="neptune",dev="mirror-0"} 0
 zpool_dev_errors_read{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"} 0
 zpool_dev_errors_read{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"} 0
-# HELP zpool_dev_errors_write Write error count
+# HELP zpool_dev_errors_write Write error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_write gauge
-zpool_dev_errors_write{pool="neptune",dev=""} 0
+zpool_dev_errors_write{pool="neptune",dev="__root__"} 0
 zpool_dev_errors_write{pool="neptune",dev="mirror-0"} 0
 zpool_dev_errors_write{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"} 0
 zpool_dev_errors_write{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"} 0
-# HELP zpool_dev_errors_checksum Checksum error count
+# HELP zpool_dev_errors_checksum Checksum error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_checksum gauge
-zpool_dev_errors_checksum{pool="neptune",dev=""} 0
+zpool_dev_errors_checksum{pool="neptune",dev="__root__"} 0
 zpool_dev_errors_checksum{pool="neptune",dev="mirror-0"} 0
 zpool_dev_errors_checksum{pool="neptune",dev="mirror-0/wwn-0x5000c500af8ec287-part2"} 0
 zpool_dev_errors_checksum{pool="neptune",dev="mirror-0/ata-TOSHIBA_HDWQ140_50SRK3F3FBJG-part1"} 0

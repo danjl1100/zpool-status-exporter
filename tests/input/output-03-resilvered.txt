@@ -13,36 +13,36 @@ zpool_scan_age{pool="dummy"} -474332.512222
 # HELP zpool_error_state Error status: UnknownMissing = 0, Unrecognized = 1, Ok = 10, DataErrors = 50
 # TYPE zpool_error_state gauge
 zpool_error_state{pool="dummy"} 10
-# HELP zpool_dev_state Device state: UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
+# HELP zpool_dev_state Device state (dev="__root__" for pool root): UnknownMissing = 0, Unrecognized = 1, Online = 10, Offline = 25, Split = 26, Degraded = 50, Faulted = 60, Suspended = 70, Removed = 80, Unavail = 100
 # TYPE zpool_dev_state gauge
-zpool_dev_state{pool="dummy",dev=""} 10
+zpool_dev_state{pool="dummy",dev="__root__"} 10
 zpool_dev_state{pool="dummy",dev="mirror-0"} 10
 zpool_dev_state{pool="dummy",dev="mirror-0/loop0"} 10
 zpool_dev_state{pool="dummy",dev="mirror-0/loop1"} 10
 zpool_dev_state{pool="dummy",dev="mirror-1"} 10
 zpool_dev_state{pool="dummy",dev="mirror-1/loop2"} 10
 zpool_dev_state{pool="dummy",dev="mirror-1/loop3"} 10
-# HELP zpool_dev_errors_read Read error count
+# HELP zpool_dev_errors_read Read error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_read gauge
-zpool_dev_errors_read{pool="dummy",dev=""} 0
+zpool_dev_errors_read{pool="dummy",dev="__root__"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-0"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-0/loop0"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-0/loop1"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-1"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-1/loop2"} 0
 zpool_dev_errors_read{pool="dummy",dev="mirror-1/loop3"} 0
-# HELP zpool_dev_errors_write Write error count
+# HELP zpool_dev_errors_write Write error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_write gauge
-zpool_dev_errors_write{pool="dummy",dev=""} 0
+zpool_dev_errors_write{pool="dummy",dev="__root__"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-0"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-0/loop0"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-0/loop1"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-1"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-1/loop2"} 0
 zpool_dev_errors_write{pool="dummy",dev="mirror-1/loop3"} 0
-# HELP zpool_dev_errors_checksum Checksum error count
+# HELP zpool_dev_errors_checksum Checksum error count (dev="__root__" for pool root)
 # TYPE zpool_dev_errors_checksum gauge
-zpool_dev_errors_checksum{pool="dummy",dev=""} 0
+zpool_dev_errors_checksum{pool="dummy",dev="__root__"} 0
 zpool_dev_errors_checksum{pool="dummy",dev="mirror-0"} 0
 zpool_dev_errors_checksum{pool="dummy",dev="mirror-0/loop0"} 0
 zpool_dev_errors_checksum{pool="dummy",dev="mirror-0/loop1"} 0
