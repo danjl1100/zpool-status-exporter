@@ -11,7 +11,7 @@ in
     nodes.machine = {pkgs, ...}: {
       imports = [nixosModule];
       boot.supportedFilesystems = ["zfs"];
-      networking.hostId = "abcd1234";
+      networking.hostId = "abcd1234"; #arbitrary
       services.zpool-status-exporter = {
         enable = true;
         inherit listen_address;
