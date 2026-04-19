@@ -20,10 +20,6 @@ url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
 version = "0.6.20"
 criteria = "safe-to-deploy"
 
-[[exemptions.anstyle]]
-version = "1.0.11"
-criteria = "safe-to-deploy"
-
 [[exemptions.anyhow]]
 version = "1.0.99"
 criteria = "safe-to-deploy"
@@ -31,10 +27,6 @@ criteria = "safe-to-deploy"
 [[exemptions.clap_derive]]
 version = "4.5.47"
 criteria = "safe-to-deploy"
-
-[[exemptions.console]]
-version = "0.15.11"
-criteria = "safe-to-run"
 
 [[exemptions.encode_unicode]]
 version = "1.0.0"
