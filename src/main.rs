@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         if let Ok(zpool_status_exporter::Ready) = ready_rx.recv() {
-            let notify_result = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+            let notify_result = sd_notify::notify(&[sd_notify::NotifyState::Ready]);
             if let Err(err) = notify_result {
                 eprintln!("error sending sd_notify Ready: {err}");
             }
