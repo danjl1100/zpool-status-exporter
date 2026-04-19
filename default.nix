@@ -17,7 +17,6 @@ rustPlatform.buildRustPackage rec {
       baseName
       == "Cargo.toml"
       || baseName == "Cargo.lock"
-      || baseName == "default.nix"
       # Allow directories and contents for Rust source
       || baseName == "src"
       || baseName == "tests"
