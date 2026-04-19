@@ -4,7 +4,7 @@
 }: let
   listen_address = "127.0.0.1:1234";
 in
-  pkgs.nixosTest {
+  pkgs.testers.nixosTest {
     name = "empty-zfs-auth";
     nodes.machine = {pkgs, ...}: {
       imports = [nixosModule];

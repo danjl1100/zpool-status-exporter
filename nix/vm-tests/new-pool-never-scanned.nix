@@ -5,7 +5,7 @@
   listen_address = "127.0.0.1:1234";
   poolname = "newpool";
 in
-  pkgs.nixosTest {
+  pkgs.testers.nixosTest {
     name = "new-pool-never-scanned";
 
     nodes.machine = {pkgs, ...}: {
