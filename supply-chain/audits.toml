@@ -1,0 +1,32 @@
+
+# cargo-vet audits file
+
+[[audits.errno]]
+who = "Daniel Lambert <danjl1100@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.8 -> 0.3.13"
+notes = "Small delta adding new error strings for new OS targets"
+
+[[audits.jiff-tzdb]]
+who = "Daniel Lambert <danjl1100@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.1.4"
+notes = "No unsafe, data export only. No ambient capabilities seen."
+
+[[audits.jiff-tzdb-platform]]
+who = "Daniel Lambert <danjl1100@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.1.3"
+notes = "No-op crate, only a re-export"
+
+[[audits.once_cell]]
+who = "Daniel Lambert <danjl1100@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.19.0 -> 1.20.2"
+notes = "Only changes features / optional dep, no actual crate content changes"
+
+[[audits.windows-link]]
+who = "Daniel Lambert <danjl1100@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.1 -> 0.1.3"
+notes = "Only lints changed"
