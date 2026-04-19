@@ -31,6 +31,7 @@
         package = pkgs.callPackage ./default.nix {};
 
         alejandra = pkgs.callPackage ./nix/alejandra.nix {};
+        cargo-vet = pkgs.callPackage ./nix/cargo-vet.nix {inherit package;};
 
         systemd-render-check = systemd.render_check {
           inherit
@@ -43,7 +44,8 @@
       in {
         checks =
           {inherit package;}
-          // alejandra.checks;
+          // alejandra.checks
+          // cargo-vet.checks;
 
         packages = let
           vm-tests = pkgs.callPackage ./nix/vm-tests {
